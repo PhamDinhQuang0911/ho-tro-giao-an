@@ -1,0 +1,5 @@
+{
+  "name": "Hỗ trợ Soạn giáo án & Tích hợp Năng lực số",
+  "description": "Phần mềm tự động điền thông tin tuần, tiết, ngày giảng và tích hợp Năng lực số (NLS) vào giáo án Word sử dụng AI.",
+  "requestFramePermissions": []
+}
