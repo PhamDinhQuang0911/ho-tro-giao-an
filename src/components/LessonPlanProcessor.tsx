@@ -771,8 +771,43 @@ export function LessonPlanProcessor() {
               <CardDescription className="text-xs">
                 Chèn phần rút kinh nghiệm và ký duyệt vào cuối giáo án.
               </CardDescription>
-            </CardHeader>
-          </Card>
+                          </CardHeader>
+              {enableReflection && (
+                <CardContent className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="auto-signing" className="text-xs">
+                      Tự động tính ngày ký (Thứ 7 tuần trước)
+                    </Label>
+                    <Switch
+                      id="auto-signing"
+                      checked={reflectionSettings?.autoSigningDate !== false}
+                      onCheckedChange={(c) => updateReflection('autoSigningDate', c)}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="insert-signature" className="text-xs">
+                      Chèn ảnh chữ ký
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setShowSigModal(true)}>
+                        <PenTool className="w-3 h-3 mr-1" /> Tạo
+                      </Button>
+                      <Switch
+                        id="insert-signature"
+                        checked={reflectionSettings?.insertSignature === true}
+                        onCheckedChange={(c) => updateReflection('insertSignature', c)}
+                      />
+                    </div>
+                  </div>
+                  {reflectionSettings?.insertSignature && savedSignatureUrl && (
+                     <div className="flex justify-center mt-2 border border-dashed border-amber-200 p-2 rounded bg-white">
+                        <img src={savedSignatureUrl} className="h-12 object-contain" alt="Chữ ký" />
+                     </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
         </div>
 
       </div>

@@ -541,8 +541,30 @@ export function ScheduleSettings() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Tiêu đề phần</Label>
+                                  <div className="flex items-center justify-between p-2 rounded-md border bg-white">
+                    <div>
+                      <p className="text-xs font-medium">Chèn ảnh chữ ký</p>
+                      <p className="text-[10px] text-slate-400">Chèn chữ ký vào giáo viên thực hiện</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setShowSigModal(true)}>
+                        <PenTool className="w-3 h-3 mr-1" /> Tạo
+                      </Button>
+                      <input
+                        type="checkbox"
+                        checked={reflectionSettings.insertSignature === true}
+                        onChange={(e) => setReflectionSettings({...reflectionSettings, insertSignature: e.target.checked})}
+                        className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                  {reflectionSettings.insertSignature && savedSignatureUrl && (
+                     <div className="flex justify-center mt-2 border border-dashed border-slate-200 p-2 rounded bg-white">
+                        <img src={savedSignatureUrl} className="h-12 object-contain" alt="Chữ ký" />
+                     </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>Tiêu đề phần</Label>
                   <Input 
                     placeholder="VD: RÚT KINH NGHIỆM" 
                     value={reflectionSettings.title || ''}
