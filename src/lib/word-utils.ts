@@ -758,6 +758,30 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
   const baseStyle = extractBaseStyles(xmlDoc);
     
 
+  
+    // Insert Signature image if provided
+    if (options.reflection?.signatureImage) {
+      const base64 = options.reflection.signatureImage.replace(/^data:image\/\w+;base64,/, '');
+      zip.file('word/media/signature.png', base64, {base64: true});
+      
+      const contentTypesPath = '[Content_Types].xml';
+      let contentTypesXml = await zip.file(contentTypesPath)?.async('string');
+      if (contentTypesXml && !contentTypesXml.includes('Extension="png"')) {
+        const pngType = '<Default Extension="png" ContentType="image/png"/>';
+        contentTypesXml = contentTypesXml.replace('</Types>', pngType + '</Types>');
+        zip.file(contentTypesPath, contentTypesXml);
+      }
+      
+      const relsPath = 'word/_rels/document.xml.rels';
+      let relsXml = await zip.file(relsPath)?.async('string');
+      if (relsXml) {
+        if (!relsXml.includes('rIdSig')) {
+          const relNode = '<Relationship Id="rIdSig" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/signature.png"/>';
+          relsXml = relsXml.replace('</Relationships>', relNode + '</Relationships>');
+          zip.file(relsPath, relsXml);
+        }
+      }
+    }
   // Handle Header/Footer if settings provided (and not completely empty)
   if (options.headerFooter && 
      (options.headerFooter.topLeft || options.headerFooter.topRight || 

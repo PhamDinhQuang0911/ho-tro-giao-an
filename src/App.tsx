@@ -37,16 +37,16 @@ export default function App() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="flex justify-center">
-                      <TabsList className="grid w-full grid-cols-3 mb-8 h-12 items-center bg-white border shadow-sm rounded-xl p-1">
-            <TabsTrigger value="processor" className="rounded-lg h-9 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
+                                <TabsList className="flex w-full border-b mb-8 bg-transparent p-0">
+            <TabsTrigger value="processor" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors">
               <FileText className="w-4 h-4 mr-2" />
               Soạn giáo án
             </TabsTrigger>
-            <TabsTrigger value="settings" className="rounded-lg h-9 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
+            <TabsTrigger value="settings" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors">
               <Settings className="w-4 h-4 mr-2" />
               Cài đặt lịch
             </TabsTrigger>
-            <TabsTrigger value="guide" className="rounded-lg h-9 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
+            <TabsTrigger value="guide" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors">
               <HelpCircle className="w-4 h-4 mr-2" />
               Hướng dẫn
             </TabsTrigger>
