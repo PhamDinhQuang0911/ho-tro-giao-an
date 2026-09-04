@@ -246,7 +246,9 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
             <w:drawing>
               <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
                 <wp:extent cx="1400000" cy="700000"/>
+                <wp:effectExtent l="0" t="0" r="0" b="0"/>
                 <wp:docPr id="999" name="Signature"/>
+                <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
                 <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
                   <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
                     <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">

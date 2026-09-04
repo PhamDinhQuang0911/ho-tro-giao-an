@@ -65,6 +65,10 @@ export default function App() {
             <div className={cn(activeTab !== 'settings' && "hidden")}>
               <ScheduleSettings />
             </div>
+            <div className={cn(activeTab !== 'guide' && "hidden")}>
+              <UserGuide />
+            </div>
+
           </motion.div>
         </Tabs>
       </div>
