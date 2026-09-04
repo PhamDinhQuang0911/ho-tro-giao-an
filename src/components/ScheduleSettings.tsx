@@ -8,6 +8,7 @@ import { Trash2, Plus, Calendar as CalendarIcon, Settings2, Layout, Pencil, Chec
 import { ScheduleItem, HeaderFooterSettings } from '@/lib/word-utils';
 import { ReflectionSettings } from '@/types';
 import { toast } from 'sonner';
+import { AiScheduleModal } from './AiScheduleModal';
 
 const DAYS_OF_WEEK = [
   { value: 1, label: 'Thứ 2' },
@@ -36,6 +37,8 @@ const DEFAULT_REFLECTION: ReflectionSettings = {
   autoSigningDate: true,
   showReflection: true,
   showSigningDate: true,
+  location: 'Đường Hào',
+  teacherName: 'Phạm Đình Quang',
 };
 
 const SUBJECTS: string[] = [
@@ -190,14 +193,17 @@ export function ScheduleSettings() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-primary" />
-            Lịch báo giảng (Thời khóa biểu)
-          </CardTitle>
-          <CardDescription>
-            Thiết lập các lớp bạn dạy trong tuần để phần mềm tự động tính toán ngày dạy.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-primary" />
+              Lịch báo giảng (Thời khóa biểu)
+            </CardTitle>
+            <CardDescription>
+              Thiết lập các lớp bạn dạy trong tuần để phần mềm tự động tính toán ngày dạy.
+            </CardDescription>
+          </div>
+          <AiScheduleModal onScheduleGenerated={saveSchedule} />
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6 items-end">
@@ -565,7 +571,23 @@ export function ScheduleSettings() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Họ tên người ký</Label>
+                    <Label>Địa danh nơi dạy</Label>
+                    <Input 
+                      placeholder="VD: Đường Hào" 
+                      value={reflectionSettings.location || ''}
+                      onChange={(e) => setReflectionSettings({...reflectionSettings, location: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Họ tên giáo viên</Label>
+                    <Input 
+                      placeholder="VD: Nguyễn Thị A" 
+                      value={reflectionSettings.teacherName || ''}
+                      onChange={(e) => setReflectionSettings({...reflectionSettings, teacherName: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Họ tên tổ trưởng/phó</Label>
                     <Input 
                       placeholder="VD: Đỗ Ngọc Phượng" 
                       value={reflectionSettings.approverName || ''}
@@ -573,7 +595,7 @@ export function ScheduleSettings() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Năm</Label>
+                    <Label>Năm học</Label>
                     <Input 
                       placeholder="VD: 2025" 
                       value={reflectionSettings.year || ''}

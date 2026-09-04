@@ -21,6 +21,8 @@ export interface ReflectionSettings {
   autoSigningDate?: boolean;
   showReflection?: boolean;   // hiển thị phần Rút kinh nghiệm (dòng kẻ)
   showSigningDate?: boolean;  // hiển thị dòng "Ký duyệt, ngày..."
+  location?: string;          // e.g. "Đường Hào"
+  teacherName?: string;       // e.g. "Nguyễn Thị A"
 }
 
 export interface ProcessingConfig {

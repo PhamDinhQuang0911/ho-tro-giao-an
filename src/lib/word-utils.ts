@@ -236,45 +236,96 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
     ${linesXml}`;
   }
 
-  // Build signing date line
-  const signingDateXml = showSigningDate ? `
-    <w:p>
-      <w:pPr>
-        <w:ind w:left="4500"/>
-        <w:jc w:val="center"/>
-      </w:pPr>
-      <w:r>
-        <w:rPr><w:i/>${fontXml}${smallSizeXml}</w:rPr>
-        <w:t>Ký duyệt, ${signingDateStr}</w:t>
-      </w:r>
-    </w:p>` : '';
+  // Build 2-column signature table
+  const loc = settings.location || 'Đường Hào';
+  const teacher = settings.teacherName || 'Nguyễn Thị A';
+  const approverTitleStr = settings.approverTitle === 'TỔ TRƯỞNG KÝ DUYỆT' ? 'Tổ trưởng' : 'Tổ phó';
+  const titleLine = settings.approverTitle === 'TỔ TRƯỞNG KÝ DUYỆT' ? 'Tổ trưởng' : 'Tổ phó';
+  const dateLine = showSigningDate ? `${loc}, ${signingDateStr}` : '';
+
+  const signatureTableXml = `
+    <w:p><w:pPr><w:jc w:val="both"/></w:pPr></w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="0" w:type="auto"/>
+        <w:tblBorders>
+          <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+        </w:tblBorders>
+        <w:tblLayout w:type="fixed"/>
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="4500"/>
+        <w:gridCol w:w="4500"/>
+      </w:tblGrid>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr><w:i/>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t>${dateLine}</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t>TM tổ chuyên môn phê duyệt</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t>${titleLine}</w:t>
+            </w:r>
+          </w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t>${settings.approverName}</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t>GIÁO VIÊN THỰC HIỆN</w:t>
+            </w:r>
+          </w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t>${teacher}</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+  `;
 
   return `
     ${reflectionXml}
-    ${signingDateXml}
-    <w:p>
-      <w:pPr>
-        <w:ind w:left="4500"/>
-        <w:jc w:val="center"/>
-      </w:pPr>
-      <w:r>
-        <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
-        <w:t>${settings.approverTitle}</w:t>
-      </w:r>
-    </w:p>
-    <w:p><w:pPr><w:jc w:val="both"/></w:pPr></w:p>
-    <w:p><w:pPr><w:jc w:val="both"/></w:pPr></w:p>
-    <w:p><w:pPr><w:jc w:val="both"/></w:pPr></w:p>
-    <w:p>
-      <w:pPr>
-        <w:ind w:left="4500"/>
-        <w:jc w:val="center"/>
-      </w:pPr>
-      <w:r>
-        <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
-        <w:t>${settings.approverName}</w:t>
-      </w:r>
-    </w:p>
+    ${signatureTableXml}
   `;
 }
 
@@ -535,6 +586,109 @@ function mergePeriodsByString(xml: string): string {
   return beforeBody + bodyOpen + outputNodes.join('') + bodyClose + afterBody;
 }
 
+function generateScheduleTableXml(options: ProcessingOptions, style: { font?: string, size?: string }) {
+  const { schedule, prepDate, classOffsets, weekOffset } = options;
+  if (!schedule || schedule.length === 0) return '';
+
+  const fontXml = style.font ? `<w:rFonts w:ascii="${style.font}" w:hAnsi="${style.font}" w:cs="${style.font}"/>` : '';
+  const sizeXml = style.size ? `<w:sz w:val="${style.size}"/><w:szCs w:val="${style.size}"/>` : '<w:sz w:val="24"/><w:szCs w:val="24"/>';
+
+  const wTcPr = (width: number, vMerge: 'restart' | 'continue' | null = null, gridSpan: number | null = null) => {
+    let xml = `<w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:vAlign w:val="center"/>`;
+    if (gridSpan) xml += `<w:gridSpan w:val="${gridSpan}"/>`;
+    if (vMerge) xml += `<w:vMerge w:val="${vMerge}"/>`;
+    xml += `</w:tcPr>`;
+    return xml;
+  };
+
+  const wP = (text: string, bold = false, color = 'auto') => `
+    <w:p>
+      <w:pPr><w:jc w:val="center"/></w:pPr>
+      <w:r>
+        <w:rPr>${bold ? '<w:b/>' : ''}<w:color w:val="${color}"/>${fontXml}${sizeXml}</w:rPr>
+        <w:t>${text}</w:t>
+      </w:r>
+    </w:p>
+  `;
+
+  const sorted = [...schedule].sort((a, b) => {
+    if (a.className !== b.className) return a.className.localeCompare(b.className);
+    if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+    return (a.period || '').localeCompare(b.period || '');
+  });
+
+  const grouped: Record<string, ScheduleItem[]> = {};
+  sorted.forEach(item => {
+    if (!grouped[item.className]) grouped[item.className] = [];
+    grouped[item.className].push(item);
+  });
+
+  const weekStart = startOfWeek(new Date(prepDate), { weekStartsOn: 1 });
+  let rowsXml = '';
+
+  for (const [className, items] of Object.entries(grouped)) {
+    let startPPCT = classOffsets[className] || 1;
+    
+    items.forEach((item, index) => {
+      const daysToAdd = item.dayOfWeek === 0 ? 6 : item.dayOfWeek - 1;
+      const itemDate = addDays(weekStart, daysToAdd);
+      const dateStr = format(itemDate, 'dd/MM/yyyy');
+      const thuStr = item.dayOfWeek === 0 ? 'Chủ nhật' : `Thứ ${item.dayOfWeek + 1}`;
+      
+      const tkbNum = item.period ? item.period.replace(/\D/g, '') : '';
+      const ppctNum = startPPCT + index;
+      const ghiChu = index === 0 && weekOffset ? `Tuần ${weekOffset}` : '';
+      const isFirstRow = index === 0;
+
+      rowsXml += `
+        <w:tr>
+          <w:tc>${wTcPr(1000, isFirstRow ? 'restart' : 'continue')} ${isFirstRow ? wP(className, true) : '<w:p/>'}</w:tc>
+          <w:tc>${wTcPr(1500)} ${wP(thuStr, true)}</w:tc>
+          <w:tc>${wTcPr(2000)} ${wP(dateStr)}</w:tc>
+          <w:tc>${wTcPr(1500)} ${wP(ppctNum.toString())}</w:tc>
+          <w:tc>${wTcPr(1500)} ${wP(tkbNum.toString())}</w:tc>
+          <w:tc>${wTcPr(1500, isFirstRow ? 'restart' : 'continue')} ${isFirstRow ? wP(ghiChu, true, 'FF0000') : '<w:p/>'}</w:tc>
+        </w:tr>
+      `;
+    });
+  }
+
+  return `
+    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="0" w:type="auto"/>
+        <w:jc w:val="center"/>
+        <w:tblBorders>
+          <w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+          <w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+          <w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+          <w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+          <w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+          <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
+        </w:tblBorders>
+      </w:tblPr>
+      <w:tr>
+        <w:tc>${wTcPr(1000, 'restart')} ${wP('Lớp', true)}</w:tc>
+        <w:tc>${wTcPr(3500, null, 2)} ${wP('Ngày dạy', true)}</w:tc>
+        <w:tc>${wTcPr(1500, 'restart')} ${wP('Tiết (KHGD)', true)}</w:tc>
+        <w:tc>${wTcPr(1500, 'restart')} ${wP('Tiết(TKB)', true)}</w:tc>
+        <w:tc>${wTcPr(1500, 'restart')} ${wP('Ghi chú', true)}</w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>${wTcPr(1000, 'continue')} <w:p/></w:tc>
+        <w:tc>${wTcPr(1500)} ${wP('Thứ', true)}</w:tc>
+        <w:tc>${wTcPr(2000)} ${wP('Ngày', true)}</w:tc>
+        <w:tc>${wTcPr(1500, 'continue')} <w:p/></w:tc>
+        <w:tc>${wTcPr(1500, 'continue')} <w:p/></w:tc>
+        <w:tc>${wTcPr(1500, 'continue')} <w:p/></w:tc>
+      </w:tr>
+      ${rowsXml}
+    </w:tbl>
+    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+  `;
+}
+
 export async function processWordFile(file: File, options: ProcessingOptions, onLog?: (msg: string) => void): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);
@@ -546,17 +700,19 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
     throw new Error('Không tìm thấy nội dung tài liệu Word.');
   }
 
-  // Apply string-based merge BEFORE DOM parsing (avoids browser namespace issues)
+  // Apply string-based merge BEFORE DOM parsing
   const rawXmlToProcess = options.mergePeriods ? mergePeriodsByString(documentXml) : documentXml;
 
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(rawXmlToProcess, "application/xml");
   const baseStyle = extractBaseStyles(xmlDoc);
 
-  // Handle Thời gian thực hiện
+  // Handle Thời gian thực hiện and Insert Schedule Table
   if (options.lessonCount > 0) {
     const paras = xmlDoc.getElementsByTagName("w:p");
     let replacedTime = false;
+    let targetNode: Element | null = null;
+    
     for (let i = 0; i < paras.length; i++) {
       const textContent = (paras[i].textContent || "").trim().toLowerCase();
       if (textContent.includes("thời gian thực hiện") || textContent.includes("số tiết")) {
@@ -567,6 +723,7 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
           for (let j = 1; j < ts.length; j++) ts[j].textContent = "";
         }
         replacedTime = true;
+        targetNode = paras[i];
         break;
       }
     }
@@ -584,9 +741,28 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
             r.appendChild(t);
             newPara.appendChild(r);
             paras[i].parentNode?.insertBefore(newPara, paras[i]);
+            targetNode = newPara;
             break;
          }
        }
+    }
+
+    // Inject Schedule Table
+    if (targetNode && options.schedule && options.schedule.length > 0) {
+      const tableXmlStr = generateScheduleTableXml(options, baseStyle);
+      const tempDoc = parser.parseFromString(`<w:body xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${tableXmlStr}</w:body>`, "application/xml");
+      
+      const nodesToInsert = Array.from(tempDoc.documentElement.childNodes);
+      
+      // Insert after targetNode
+      let currentRef = targetNode.nextSibling;
+      for (const node of nodesToInsert) {
+        if (currentRef) {
+          targetNode.parentNode?.insertBefore(xmlDoc.importNode(node, true), currentRef);
+        } else {
+          targetNode.parentNode?.appendChild(xmlDoc.importNode(node, true));
+        }
+      }
     }
   }
 
