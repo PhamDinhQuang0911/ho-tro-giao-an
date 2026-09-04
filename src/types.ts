@@ -23,6 +23,8 @@ export interface ReflectionSettings {
   showSigningDate?: boolean;  // hiển thị dòng "Ký duyệt, ngày..."
   location?: string;          // e.g. "Đường Hào"
   teacherName?: string;       // e.g. "Nguyễn Thị A"
+  insertSignature?: boolean;
+  signatureImage?: string;
 }
 
 export interface ProcessingConfig {

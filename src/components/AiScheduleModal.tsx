@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -89,11 +89,9 @@ export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/5">
-          <Sparkles className="w-4 h-4" />
-          Lên lịch bằng AI
-        </Button>
+      <DialogTrigger className={buttonVariants({ variant: "outline", className: "gap-2 border-primary text-primary hover:bg-primary/5 cursor-pointer" })}>
+        <Sparkles className="w-4 h-4" />
+        Lên lịch bằng AI
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>

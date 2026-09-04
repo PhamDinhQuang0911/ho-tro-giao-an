@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SignatureModal } from './SignatureModal';
+import { PenTool } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,6 +61,12 @@ export function ScheduleSettings() {
   const [newSubject, setNewSubject] = useState('');
   const [newPeriod, setNewPeriod] = useState('');
   
+  const [showSigModal, setShowSigModal] = useState(false);
+  const [savedSignatureUrl, setSavedSignatureUrl] = useState('');
+  useEffect(() => {
+    const savedSig = localStorage.getItem('lesson-plan-signature-image');
+    if (savedSig) setSavedSignatureUrl(savedSig);
+  }, []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDay, setEditDay] = useState<number>(1);
   const [editClass, setEditClass] = useState('');
@@ -261,6 +269,24 @@ export function ScheduleSettings() {
             </Button>
           </div>
 
+          <div className="flex justify-between items-center mb-2 mt-6">
+            <h3 className="text-sm font-semibold">Danh sách lịch báo giảng</h3>
+            {schedule.length > 0 && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="h-8 text-xs"
+                onClick={() => {
+                  if (confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch dạy?')) {
+                    saveSchedule([]);
+                    toast.success('Đã xóa toàn bộ lịch dạy');
+                  }
+                }}
+              >
+                <Trash2 className="w-3 h-3 mr-1" /> Xóa tất cả
+              </Button>
+            )}
+          </div>
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader className="bg-slate-50">
@@ -612,6 +638,16 @@ export function ScheduleSettings() {
           </Button>
         </CardContent>
       </Card>
+
+      <SignatureModal 
+        open={showSigModal} 
+        onOpenChange={setShowSigModal} 
+        onSave={(img) => {
+          setSavedSignatureUrl(img);
+          localStorage.setItem('lesson-plan-signature-image', img);
+          setReflectionSettings({...reflectionSettings, insertSignature: true});
+        }}
+      />
     </div>
   );
 }

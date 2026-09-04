@@ -168,29 +168,15 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
           <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
         </w:tblBorders>
       </w:tblPr>
-      <w:tr>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
-          <w:p><w:pPr><w:jc w:val="left"/></w:pPr><w:r><w:rPr><w:b/>${fontXml}${sizeXml}</w:rPr><w:t>Tuần: ${weekDisplay}</w:t></w:r></w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/>${fontXml}${sizeXml}</w:rPr><w:t>Ngày soạn: ${formattedPrepDate}</w:t></w:r></w:p>
-        </w:tc>
-      </w:tr>
-      <w:tr>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
-          <w:p><w:pPr><w:jc w:val="left"/></w:pPr><w:r><w:rPr><w:b/>${fontXml}${sizeXml}</w:rPr><w:t>Tiết: ${periodDisplay}</w:t></w:r></w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/>${fontXml}${sizeXml}</w:rPr><w:t>Ngày dạy: ${teachingDateText}</w:t></w:r></w:p>
-        </w:tc>
-      </w:tr>
+      
     </w:tbl>
     <w:p><w:r><w:br w:type="textWrapping"/></w:r></w:p>
   `;
+  
+  // Append the schedule table directly to the header!
+  const scheduleTableXml = generateScheduleTableXml(options, style);
+  xml += scheduleTableXml;
+  
   return { xml, earliestTeachingDate };
 }
 
@@ -242,6 +228,49 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
   const approverTitleStr = settings.approverTitle === 'TỔ TRƯỞNG KÝ DUYỆT' ? 'Tổ trưởng' : 'Tổ phó';
   const titleLine = settings.approverTitle === 'TỔ TRƯỞNG KÝ DUYỆT' ? 'Tổ trưởng' : 'Tổ phó';
   const dateLine = showSigningDate ? `${loc}, ${signingDateStr}` : '';
+
+
+    let signatureDrawing = `
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+    `;
+
+    if (settings.signatureImage) {
+      signatureDrawing = `
+        <w:p>
+          <w:pPr><w:jc w:val="center"/></w:pPr>
+          <w:r>
+            <w:drawing>
+              <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+                <wp:extent cx="1400000" cy="700000"/>
+                <wp:docPr id="999" name="Signature"/>
+                <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                    <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                      <pic:nvPicPr>
+                        <pic:cNvPr id="0" name="sig.png"/>
+                        <pic:cNvPicPr/>
+                      </pic:nvPicPr>
+                      <pic:blipFill>
+                        <a:blip r:embed="rIdSig" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+                        <a:stretch><a:fillRect/></a:stretch>
+                      </pic:blipFill>
+                      <pic:spPr>
+                        <a:xfrm><a:off x="0" y="0"/><a:ext cx="1400000" cy="700000"/></a:xfrm>
+                        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                      </pic:spPr>
+                    </pic:pic>
+                  </a:graphicData>
+                </a:graphic>
+              </wp:inline>
+            </w:drawing>
+          </w:r>
+        </w:p>
+      `;
+    }
 
   const signatureTableXml = `
     <w:p><w:pPr><w:jc w:val="both"/></w:pPr></w:p>
@@ -587,7 +616,7 @@ function mergePeriodsByString(xml: string): string {
 }
 
 function generateScheduleTableXml(options: ProcessingOptions, style: { font?: string, size?: string }) {
-  const { schedule, prepDate, classOffsets, weekOffset } = options;
+  const { schedule, prepDate, classOffsets, weekOffset = 1, weekNumber, lessonCount = 1 } = options;
   if (!schedule || schedule.length === 0) return '';
 
   const fontXml = style.font ? `<w:rFonts w:ascii="${style.font}" w:hAnsi="${style.font}" w:cs="${style.font}"/>` : '';
@@ -625,29 +654,50 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
 
   const weekStart = startOfWeek(new Date(prepDate), { weekStartsOn: 1 });
   let rowsXml = '';
+  
+  const baseWeek = (parseInt(weekNumber) || 1) + weekOffset;
 
-  for (const [className, items] of Object.entries(grouped)) {
+  for (const [className, classItems] of Object.entries(grouped)) {
     let startPPCT = classOffsets[className] || 1;
     
-    items.forEach((item, index) => {
-      const daysToAdd = item.dayOfWeek === 0 ? 6 : item.dayOfWeek - 1;
-      const itemDate = addDays(weekStart, daysToAdd);
-      const dateStr = format(itemDate, 'dd/MM/yyyy');
-      const thuStr = item.dayOfWeek === 0 ? 'Chủ nhật' : `Thứ ${item.dayOfWeek + 1}`;
+    const sessions: any[] = [];
+    let currentWeekOffset = 0;
+    while (sessions.length < lessonCount) {
+       for (const item of classItems) {
+          if (sessions.length >= lessonCount) break;
+          const daysToAdd = item.dayOfWeek === 0 ? 6 : item.dayOfWeek - 1;
+          const itemDate = addDays(weekStart, daysToAdd + currentWeekOffset * 7);
+          sessions.push({
+             ...item,
+             date: itemDate,
+             weekIndex: currentWeekOffset
+          });
+       }
+       currentWeekOffset++;
+    }
+
+    sessions.forEach((session, index) => {
+      const dateStr = format(session.date, 'dd/MM/yyyy');
+      const thuStr = session.dayOfWeek === 0 ? 'Chủ nhật' : `Thứ ${session.dayOfWeek + 1}`;
       
-      const tkbNum = item.period ? item.period.replace(/\D/g, '') : '';
+      const tkbNum = session.period ? session.period.replace(/\D/g, '') : '';
       const ppctNum = startPPCT + index;
-      const ghiChu = index === 0 && weekOffset ? `Tuần ${weekOffset}` : '';
-      const isFirstRow = index === 0;
+      
+      const isFirstOfClass = index === 0;
+      
+      const sessionsInThisWeek = sessions.filter(s => s.weekIndex === session.weekIndex);
+      const isFirstOfWeekForClass = sessionsInThisWeek[0] === session;
+      
+      const tuanStr = isFirstOfWeekForClass ? `Tuần ${baseWeek + session.weekIndex}` : '';
 
       rowsXml += `
         <w:tr>
-          <w:tc>${wTcPr(1000, isFirstRow ? 'restart' : 'continue')} ${isFirstRow ? wP(className, true) : '<w:p/>'}</w:tc>
+          <w:tc>${wTcPr(1000, isFirstOfClass ? 'restart' : 'continue')} ${isFirstOfClass ? wP(className, true) : '<w:p/>'}</w:tc>
           <w:tc>${wTcPr(1500)} ${wP(thuStr, true)}</w:tc>
           <w:tc>${wTcPr(2000)} ${wP(dateStr)}</w:tc>
           <w:tc>${wTcPr(1500)} ${wP(ppctNum.toString())}</w:tc>
           <w:tc>${wTcPr(1500)} ${wP(tkbNum.toString())}</w:tc>
-          <w:tc>${wTcPr(1500, isFirstRow ? 'restart' : 'continue')} ${isFirstRow ? wP(ghiChu, true, 'FF0000') : '<w:p/>'}</w:tc>
+          <w:tc>${wTcPr(1500, isFirstOfWeekForClass ? 'restart' : 'continue')} ${isFirstOfWeekForClass ? wP(tuanStr, true, 'FF0000') : '<w:p/>'}</w:tc>
         </w:tr>
       `;
     });
@@ -706,65 +756,7 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(rawXmlToProcess, "application/xml");
   const baseStyle = extractBaseStyles(xmlDoc);
-
-  // Handle Thời gian thực hiện and Insert Schedule Table
-  if (options.lessonCount > 0) {
-    const paras = xmlDoc.getElementsByTagName("w:p");
-    let replacedTime = false;
-    let targetNode: Element | null = null;
     
-    for (let i = 0; i < paras.length; i++) {
-      const textContent = (paras[i].textContent || "").trim().toLowerCase();
-      if (textContent.includes("thời gian thực hiện") || textContent.includes("số tiết")) {
-        // Replace it
-        const ts = paras[i].getElementsByTagName("w:t");
-        if (ts.length > 0) {
-          ts[0].textContent = `Thời gian thực hiện: ${options.lessonCount} tiết`;
-          for (let j = 1; j < ts.length; j++) ts[j].textContent = "";
-        }
-        replacedTime = true;
-        targetNode = paras[i];
-        break;
-      }
-    }
-    
-    // If not found, try to insert right before "Mục tiêu"
-    if (!replacedTime) {
-       for (let i = 0; i < paras.length; i++) {
-         const textContent = (paras[i].textContent || "").trim().toLowerCase();
-         if (textContent.includes("mục tiêu") && (textContent.startsWith("i") || textContent.startsWith("1"))) {
-            const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-            const newPara = xmlDoc.createElementNS(w, "w:p");
-            const r = xmlDoc.createElementNS(w, "w:r");
-            const t = xmlDoc.createElementNS(w, "w:t");
-            t.textContent = `Thời gian thực hiện: ${options.lessonCount} tiết`;
-            r.appendChild(t);
-            newPara.appendChild(r);
-            paras[i].parentNode?.insertBefore(newPara, paras[i]);
-            targetNode = newPara;
-            break;
-         }
-       }
-    }
-
-    // Inject Schedule Table
-    if (targetNode && options.schedule && options.schedule.length > 0) {
-      const tableXmlStr = generateScheduleTableXml(options, baseStyle);
-      const tempDoc = parser.parseFromString(`<w:body xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${tableXmlStr}</w:body>`, "application/xml");
-      
-      const nodesToInsert = Array.from(tempDoc.documentElement.childNodes);
-      
-      // Insert after targetNode
-      let currentRef = targetNode.nextSibling;
-      for (const node of nodesToInsert) {
-        if (currentRef) {
-          targetNode.parentNode?.insertBefore(xmlDoc.importNode(node, true), currentRef);
-        } else {
-          targetNode.parentNode?.appendChild(xmlDoc.importNode(node, true));
-        }
-      }
-    }
-  }
 
   // Handle Header/Footer if settings provided (and not completely empty)
   if (options.headerFooter && 

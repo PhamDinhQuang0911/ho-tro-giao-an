@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout } from 'lucide-react';
+import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool } from 'lucide-react';
+import { SignatureModal } from './SignatureModal';
 import { processWordFile, ScheduleItem, ProcessingOptions, HeaderFooterSettings } from '@/lib/word-utils';
 import { toast } from 'sonner';
 import { format, addDays, startOfWeek } from 'date-fns';
@@ -76,6 +77,16 @@ export function LessonPlanProcessor() {
   const [aiModel, setAiModel] = useState<string>('gemini-3.6-flash');
   const [mergePeriods, setMergePeriods] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [showSigModal, setShowSigModal] = useState(false);
+  const [savedSignatureUrl, setSavedSignatureUrl] = useState('');
+  
+  const updateReflection = (key: string, value: any) => {
+    setReflectionSettings(prev => {
+      const next = { ...(prev || {}), [key]: value, enabled: true };
+      localStorage.setItem('lesson-plan-reflection-settings', JSON.stringify(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     const savedSchedule = localStorage.getItem('lesson-plan-schedule');
@@ -124,13 +135,13 @@ export function LessonPlanProcessor() {
 
   const subjects = useMemo(() => {
     const fromSchedule = Array.from(new Set(schedule.map(s => s.subject)));
-    return fromSchedule.length > 0 ? fromSchedule : SUBJECTS;
+    return Array.from(new Set([...fromSchedule, ...SUBJECTS]));
   }, [schedule]);
 
   const classes = useMemo(() => {
     if (!selectedSubject) return [];
     const allForSubject = Array.from(new Set(schedule
-      .filter(s => s.subject.toLowerCase() === selectedSubject.toLowerCase())
+      .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
       .map(s => s.className)
     ));
     return allForSubject;
@@ -154,7 +165,7 @@ export function LessonPlanProcessor() {
     const getSessionsForWeek = (weekStart: Date, weekOffset: number) => {
       const currentWeekNum = (parseInt(weekNumber) || 0) + weekOffset;
       return schedule
-        .filter(s => s.subject.toLowerCase() === selectedSubject.toLowerCase())
+        .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
         .sort((a, b) => {
           const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
           const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -222,7 +233,7 @@ export function LessonPlanProcessor() {
       const weekStart = addDays(startOfTargetWeek, i * 7);
       const currentWeekNum = (parseInt(weekNumber) || 0) + i;
       const sessions = schedule
-        .filter(s => s.subject.toLowerCase() === selectedSubject.toLowerCase() && s.className === className)
+        .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()) && s.className === className)
         .sort((a, b) => {
           const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
           const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -275,7 +286,7 @@ export function LessonPlanProcessor() {
     setIsProcessing(true);
     setLogs(["🚀 Bắt đầu xử lý..."]);
     try {
-      const filteredSchedule = schedule.filter(s => selectedClasses.includes(s.className));
+      const filteredSchedule = schedule.filter(s => selectedClasses.includes(s.className) && s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()));
 
       let appendixText = '';
       if (enableNLS) {
@@ -344,7 +355,7 @@ export function LessonPlanProcessor() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+    <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-6">
           <Card>
@@ -358,7 +369,7 @@ export function LessonPlanProcessor() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="subject-select">Môn học</Label>
                   <select
@@ -423,7 +434,9 @@ export function LessonPlanProcessor() {
                           className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
                         />
                         <Label htmlFor={`class-${className}`} className="text-sm cursor-pointer">
-                          {className}
+                          {className} <span className="text-slate-500 text-xs ml-1">
+                            ({schedule.filter(s => s.className === className && s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase())).map(s => `Thứ ${s.dayOfWeek === 0 ? 'CN' : s.dayOfWeek + 1} (${s.period || '?'})`).join(', ')})
+                          </span>
                         </Label>
                       </div>
                     ))}
@@ -434,7 +447,7 @@ export function LessonPlanProcessor() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="week">Tuần</Label>
                   <Input 
@@ -522,9 +535,79 @@ export function LessonPlanProcessor() {
               </Button>
             </CardFooter>
           </Card>
-        </div>
 
-        <div className="lg:col-span-5 space-y-6">
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
+                <CheckCircle2 className="w-4 h-4" />
+                Xem trước & Cấu hình lớp
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Điều chỉnh tiết bắt đầu cho từng lớp nếu phân phối chương trình bị lệch.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {calculatedDates.length > 0 ? (
+                <div className="rounded-lg border bg-white overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="text-[10px] h-8">Lớp</TableHead>
+                        <TableHead className="text-[10px] h-8">Bắt đầu từ</TableHead>
+                        <TableHead className="text-[10px] h-8">Lịch dạy dự kiến</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {calculatedDates.map((d, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="py-2 text-[10px] font-medium">{d.className}</TableCell>
+                          <TableCell className="py-2">
+                            <select
+                              className="h-6 w-full rounded border bg-white text-[10px] px-1 focus:ring-1 focus:ring-primary outline-none"
+                              value={classOffsets[d.className] || 1}
+                              onChange={(e) => handleOffsetChange(d.className, parseInt(e.target.value))}
+                            >
+                              {getClassSessions(d.className).map((s, idx) => (
+                                <option key={idx} value={idx + 1}>
+                                  T.{s.weekNum} - {s.dayLabel} {s.period ? `(${s.period})` : `(Tiết ${idx + 1})`}
+                                </option>
+                              ))}
+                            </select>
+                          </TableCell>
+                          <TableCell className="py-2 text-[10px] text-primary font-medium">{d.date}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-xs text-slate-400 italic">
+                  {schedule.length === 0 
+                    ? "Chưa có lịch dạy. Hãy vào Cài đặt." 
+                    : "Chọn môn học và ngày soạn để xem trước."}
+                </div>
+              )}
+              <p className="text-[9px] text-slate-400 mt-3 italic leading-tight">
+                * "Bắt đầu từ" giúp xử lý trường hợp các lớp đang ở các tiết khác nhau trong tuần.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-amber-50 border-amber-100">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold text-amber-800 flex items-center gap-2">
+                <Info className="w-3 h-3" />
+                Lưu ý quan trọng
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-[11px] text-amber-700 space-y-2 leading-relaxed">
+              <p>• Phần mềm sẽ tự động tìm <strong>Tuần tiếp theo</strong> kể từ ngày soạn để điền ngày dạy.</p>
+              <p>• Đảm bảo bạn đã nhập đúng <strong>Môn học</strong> trong phần Cài đặt để bộ lọc hoạt động chính xác.</p>
+              <p>• File Word sau khi xử lý sẽ có thêm bảng thông tin ở ngay đầu tài liệu.</p>
+            </CardContent>
+          </Card>
+        </div>
+<div className="lg:col-span-5 space-y-6">
           <Card className="border-teal-200 bg-teal-50/30">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -690,79 +773,18 @@ export function LessonPlanProcessor() {
               </CardDescription>
             </CardHeader>
           </Card>
-
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-                <CheckCircle2 className="w-4 h-4" />
-                Xem trước & Cấu hình lớp
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Điều chỉnh tiết bắt đầu cho từng lớp nếu phân phối chương trình bị lệch.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {calculatedDates.length > 0 ? (
-                <div className="rounded-lg border bg-white overflow-hidden">
-                  <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="text-[10px] h-8">Lớp</TableHead>
-                        <TableHead className="text-[10px] h-8">Bắt đầu từ</TableHead>
-                        <TableHead className="text-[10px] h-8">Lịch dạy dự kiến</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {calculatedDates.map((d, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="py-2 text-[10px] font-medium">{d.className}</TableCell>
-                          <TableCell className="py-2">
-                            <select
-                              className="h-6 w-full rounded border bg-white text-[10px] px-1 focus:ring-1 focus:ring-primary outline-none"
-                              value={classOffsets[d.className] || 1}
-                              onChange={(e) => handleOffsetChange(d.className, parseInt(e.target.value))}
-                            >
-                              {getClassSessions(d.className).map((s, idx) => (
-                                <option key={idx} value={idx + 1}>
-                                  T.{s.weekNum} - {s.dayLabel} {s.period ? `(${s.period})` : `(Tiết ${idx + 1})`}
-                                </option>
-                              ))}
-                            </select>
-                          </TableCell>
-                          <TableCell className="py-2 text-[10px] text-primary font-medium">{d.date}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-xs text-slate-400 italic">
-                  {schedule.length === 0 
-                    ? "Chưa có lịch dạy. Hãy vào Cài đặt." 
-                    : "Chọn môn học và ngày soạn để xem trước."}
-                </div>
-              )}
-              <p className="text-[9px] text-slate-400 mt-3 italic leading-tight">
-                * "Bắt đầu từ" giúp xử lý trường hợp các lớp đang ở các tiết khác nhau trong tuần.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-amber-50 border-amber-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold text-amber-800 flex items-center gap-2">
-                <Info className="w-3 h-3" />
-                Lưu ý quan trọng
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-[11px] text-amber-700 space-y-2 leading-relaxed">
-              <p>• Phần mềm sẽ tự động tìm <strong>Tuần tiếp theo</strong> kể từ ngày soạn để điền ngày dạy.</p>
-              <p>• Đảm bảo bạn đã nhập đúng <strong>Môn học</strong> trong phần Cài đặt để bộ lọc hoạt động chính xác.</p>
-              <p>• File Word sau khi xử lý sẽ có thêm bảng thông tin ở ngay đầu tài liệu.</p>
-            </CardContent>
-          </Card>
         </div>
+
       </div>
+      <SignatureModal 
+        open={showSigModal} 
+        onOpenChange={setShowSigModal} 
+        onSave={(img) => {
+          setSavedSignatureUrl(img);
+          localStorage.setItem('lesson-plan-signature-image', img);
+          updateReflection('insertSignature', true);
+        }}
+      />
     </div>
   );
 }
