@@ -8,8 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScheduleSettings } from '@/components/ScheduleSettings';
 import { UserGuide } from '@/components/UserGuide';
 import { LessonPlanProcessor } from '@/components/LessonPlanProcessor';
+import { ScheduleBuilder } from '@/features/TeachingSchedule/ui/ScheduleBuilder';
 import { Toaster } from '@/components/ui/sonner';
-import { BookOpen, Settings, FileText, HelpCircle } from 'lucide-react';
+import { BookOpen, Settings, FileText, HelpCircle, CalendarRange } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 
@@ -44,16 +45,20 @@ export default function App() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="flex justify-center">
-                                <TabsList className="flex w-full border-b mb-8 bg-transparent p-0">
-            <TabsTrigger value="processor" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors">
+            <TabsList className="flex w-full border-b mb-8 bg-transparent p-0 overflow-x-auto">
+            <TabsTrigger value="processor" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors whitespace-nowrap">
               <FileText className="w-4 h-4 mr-2" />
               Soạn giáo án
             </TabsTrigger>
-            <TabsTrigger value="settings" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors">
+            <TabsTrigger value="schedule" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors whitespace-nowrap">
+              <CalendarRange className="w-4 h-4 mr-2" />
+              Tạo Lịch Báo Giảng
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors whitespace-nowrap">
               <Settings className="w-4 h-4 mr-2" />
               Cài đặt lịch
             </TabsTrigger>
-            <TabsTrigger value="guide" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors">
+            <TabsTrigger value="guide" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent text-slate-500 font-medium py-3 data-[state=active]:shadow-none transition-colors whitespace-nowrap">
               <HelpCircle className="w-4 h-4 mr-2" />
               Hướng dẫn
             </TabsTrigger>
@@ -68,6 +73,9 @@ export default function App() {
             {/* Use custom display logic to preserve state instead of TabsContent which unmounts */}
             <div className={cn(activeTab !== 'processor' && "hidden")}>
               <LessonPlanProcessor />
+            </div>
+            <div className={cn(activeTab !== 'schedule' && "hidden")}>
+              <ScheduleBuilder />
             </div>
             <div className={cn(activeTab !== 'settings' && "hidden")}>
               <ScheduleSettings />

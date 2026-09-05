@@ -674,10 +674,11 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
     grouped[item.className].push(item);
   });
 
-  const weekStart = startOfWeek(new Date(prepDate), { weekStartsOn: 1 });
+  // Apply weekOffset so table dates match the preview (same as generateHeaderXml)
+  const weekStart = addDays(startOfWeek(new Date(prepDate), { weekStartsOn: 1 }), 7 * weekOffset);
   let rowsXml = '';
   
-  const baseWeek = (parseInt(weekNumber) || 1) + weekOffset;
+  const baseWeek = (parseInt(weekNumber) || 1) + (weekOffset - 1);
 
   for (const [className, classItems] of Object.entries(grouped)) {
     let startPPCT = classOffsets[className] || 1;
