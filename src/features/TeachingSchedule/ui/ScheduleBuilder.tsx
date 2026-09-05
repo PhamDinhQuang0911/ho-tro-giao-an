@@ -48,6 +48,7 @@ export function ScheduleBuilder() {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [scheduleData, setScheduleData] = useState<ScheduledLesson[]>([]);
+  const [expandedPpctId, setExpandedPpctId] = useState<string | null>(null);
   
   const [afternoonFormat, setAfternoonFormat] = useState('suffix'); // 'suffix' | 'continuous' | 'normal'
   const [afternoonStartPeriod, setAfternoonStartPeriod] = useState(6);
@@ -340,23 +341,53 @@ export function ScheduleBuilder() {
             {cachedFiles.length > 0 && (
               <div className="space-y-3">
                 {cachedFiles.map(file => (
-                  <div key={file.id} className="flex items-center gap-3 bg-slate-50 border p-3 rounded-md">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-700">{file.fileName}</p>
-                      <p className="text-xs text-slate-500">Đã đọc {file.lessons.length} tiết</p>
+                  <div key={file.id} className="bg-slate-50 border rounded-md overflow-hidden">
+                    <div className="flex items-center gap-3 p-3">
+                      <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-slate-700">{file.fileName}</p>
+                        <button
+                          className="text-xs text-blue-500 underline mt-0.5"
+                          onClick={() => setExpandedPpctId(expandedPpctId === file.id ? null : file.id)}
+                        >
+                          {expandedPpctId === file.id ? '▲ Ẩn' : `▼ Xem ${file.lessons.length} tiết đã đọc`}
+                        </button>
+                      </div>
+                      <div className="w-1/3">
+                        <Label className="text-xs text-slate-500 mb-1 block">Tên môn (Phải khớp với TKB)</Label>
+                        <Input 
+                          value={file.subjectName} 
+                          onChange={(e) => handleSubjectNameChange(file.id, e.target.value)}
+                          className="h-8 text-sm font-medium"
+                        />
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCachedFile(file.id)} className="text-red-500 hover:text-red-700 shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <div className="w-1/3">
-                      <Label className="text-xs text-slate-500 mb-1 block">Tên môn (Phải khớp với TKB)</Label>
-                      <Input 
-                        value={file.subjectName} 
-                        onChange={(e) => handleSubjectNameChange(file.id, e.target.value)}
-                        className="h-8 text-sm font-medium"
-                      />
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteCachedFile(file.id)} className="text-red-500 hover:text-red-700 shrink-0">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {expandedPpctId === file.id && (
+                      <div className="border-t bg-white px-3 pb-3 max-h-48 overflow-y-auto">
+                        <table className="w-full text-xs mt-2">
+                          <thead>
+                            <tr className="text-slate-500">
+                              <th className="text-left py-1 w-12">Tiết</th>
+                              <th className="text-left py-1">Tên bài</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {file.lessons.slice(0, 20).map((l, i) => (
+                              <tr key={i} className="border-t">
+                                <td className="py-1 font-mono">{l.ppct_period}</td>
+                                <td className="py-1">{l.lesson_name}</td>
+                              </tr>
+                            ))}
+                            {file.lessons.length > 20 && (
+                              <tr><td colSpan={2} className="text-slate-400 py-1">...và {file.lessons.length - 20} tiết nữa</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
