@@ -72,6 +72,13 @@ export default function App() {
           </motion.div>
         </Tabs>
       </div>
+      
+      {/* Footer */}
+      <div className="mt-16 text-center text-sm text-slate-500 pb-8">
+        <p>Phần mềm được phát triển bởi:</p>
+        <p className="font-semibold text-slate-700 mt-1">Phạm Đình Quang - THCS Đường Hào Phân hiệu 4</p>
+      </div>
+
       <Toaster position="top-center" richColors />
     </div>
   );

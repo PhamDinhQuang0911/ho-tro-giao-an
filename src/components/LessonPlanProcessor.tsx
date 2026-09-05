@@ -638,21 +638,35 @@ export function LessonPlanProcessor() {
                       Lấy Key miễn phí
                     </a>
                   </div>
-                  <div className="relative">
-                    <Input 
-                      id="api-key"
-                      type={showApiKey ? "text" : "password"}
-                      value={nlsApiKey}
-                      onChange={(e) => setNlsApiKey(e.target.value)}
-                      placeholder="AIza..."
-                      className="pr-10 text-xs h-9"
-                    />
-                    <button 
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input 
+                        id="api-key"
+                        type={showApiKey ? "text" : "password"}
+                        value={nlsApiKey}
+                        onChange={(e) => setNlsApiKey(e.target.value)}
+                        placeholder="AIza..."
+                        className="pr-10 text-xs h-9"
+                      />
+                      <button 
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-9 px-3 text-xs bg-teal-100 hover:bg-teal-200 text-teal-800"
+                      onClick={() => {
+                        localStorage.setItem('USER_GEMINI_API_KEY', nlsApiKey);
+                        toast.success('Đã lưu API Key');
+                      }}
                     >
-                      {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
+                      Lưu
+                    </Button>
                   </div>
                 </div>
 
