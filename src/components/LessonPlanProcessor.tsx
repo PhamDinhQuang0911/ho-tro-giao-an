@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool } from 'lucide-react';
 import { SignatureModal } from './SignatureModal';
+import { AppendixManager } from './AppendixManager';
 import { processWordFile, ScheduleItem, ProcessingOptions, HeaderFooterSettings } from '@/lib/word-utils';
 import { toast } from 'sonner';
 import { format, addDays, startOfWeek } from 'date-fns';
@@ -53,14 +54,15 @@ import { extractTextFromDocx } from '@/lib/nls-utils';
 
 export function LessonPlanProcessor() {
   const [file, setFile] = useState<File | null>(null);
-  const [appendix1File, setAppendix1File] = useState<File | null>(null);
-  const [appendix3File, setAppendix3File] = useState<File | null>(null);
+  const [appendix1Text, setAppendix1Text] = useState<string>('');
+  const [appendix3Text, setAppendix3Text] = useState<string>('');
   const [weekNumber, setWeekNumber] = useState('');
   const [periodNumber, setPeriodNumber] = useState('');
   const [prepDate, setPrepDate] = useState<Date>(new Date());
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [lessonCount, setLessonCount] = useState('1');
+  const [createScheduleTable, setCreateScheduleTable] = useState(true);
   const [weekOffset, setWeekOffset] = useState('1');
   const [classOffsets, setClassOffsets] = useState<Record<string, number>>({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -75,6 +77,7 @@ export function LessonPlanProcessor() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [nlsGrade, setNlsGrade] = useState<GradeType | ''>('');
   const [aiModel, setAiModel] = useState<string>('gemini-3.6-flash');
+  const [addNlsColumn, setAddNlsColumn] = useState(true);
   const [mergePeriods, setMergePeriods] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [showSigModal, setShowSigModal] = useState(false);
@@ -288,19 +291,11 @@ export function LessonPlanProcessor() {
     try {
       const filteredSchedule = schedule.filter(s => selectedClasses.includes(s.className) && s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()));
 
-      let appendixText = '';
-      if (enableNLS) {
-        if (appendix1File) {
-          setLogs(prev => [...prev, ">> Đọc Phụ lục 1..."]);
-          const text1 = await extractTextFromDocx(appendix1File);
-          appendixText += "--- PHỤ LỤC 1 ---\n" + text1 + "\n\n";
+              let appendixText = '';
+        if (enableNLS) {
+          if (appendix1Text) appendixText += "--- PHỤ LỤC 1 ---\n" + appendix1Text + "\n\n";
+          if (appendix3Text) appendixText += "--- PHỤ LỤC 3 ---\n" + appendix3Text + "\n\n";
         }
-        if (appendix3File) {
-          setLogs(prev => [...prev, ">> Đọc Phụ lục 3..."]);
-          const text3 = await extractTextFromDocx(appendix3File);
-          appendixText += "--- PHỤ LỤC 3 ---\n" + text3 + "\n\n";
-        }
-      }
 
       const options: ProcessingOptions = {
         weekNumber,
@@ -309,6 +304,7 @@ export function LessonPlanProcessor() {
         schedule: filteredSchedule,
         subject: selectedSubject,
         lessonCount: parseInt(lessonCount) || 1,
+          createScheduleTable: createScheduleTable,
         weekOffset: parseInt(weekOffset) || 1,
         classOffsets: classOffsets,
         mergePeriods: mergePeriods,
@@ -412,6 +408,18 @@ export function LessonPlanProcessor() {
                     <option value="2">Cách 2 tuần</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="flex items-center space-x-2 py-2 px-1 bg-slate-50 rounded-md border mt-2">
+                <Switch 
+                  id="create-schedule-table"
+                  checked={createScheduleTable}
+                  onCheckedChange={setCreateScheduleTable}
+                />
+                <Label htmlFor="create-schedule-table" className="text-xs cursor-pointer">
+                  <span className="font-medium">Tạo bảng lịch dạy chi tiết</span>
+                  <span className="text-slate-400 ml-1">(Tắt = ghi dòng đơn giản: Tiết X. Ngày dạy: ...)</span>
+                </Label>
               </div>
 
               {classes.length > 0 && (
@@ -717,38 +725,36 @@ export function LessonPlanProcessor() {
                   </Label>
                 </div>
 
-                <div className="space-y-3 pt-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Phụ lục 1 (Tùy chọn)</Label>
-                    <input 
-                      type="file" 
-                      accept=".docx"
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs file:border-0 file:bg-transparent file:text-xs file:font-medium"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                           setAppendix1File(e.target.files[0]);
-                        } else {
-                           setAppendix1File(null);
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Phụ lục 3 (Tùy chọn)</Label>
-                    <input 
-                      type="file" 
-                      accept=".docx"
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs file:border-0 file:bg-transparent file:text-xs file:font-medium"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                           setAppendix3File(e.target.files[0]);
-                        } else {
-                           setAppendix3File(null);
-                        }
-                      }}
-                    />
-                  </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <AppendixManager 
+                    type="PL1" 
+                    subject={selectedSubject as any} 
+                    grade={nlsGrade as any} 
+                    onAppendixLoaded={setAppendix1Text} 
+                  />
+                  <AppendixManager 
+                    type="PL3" 
+                    subject={selectedSubject as any} 
+                    grade={nlsGrade as any} 
+                    onAppendixLoaded={setAppendix3Text} 
+                  />
                 </div>
+
+                <div className="flex items-center space-x-2 pt-2 border-t border-teal-100 mt-2">
+                  <Switch 
+                    id="add-nls-column"
+                    checked={addNlsColumn}
+                    onCheckedChange={(c) => {
+                      setAddNlsColumn(c);
+                      localStorage.setItem('USER_ADD_NLS_COL', c.toString());
+                    }}
+                  />
+                  <Label htmlFor="add-nls-column" className="text-xs">
+                    Thêm cột NLS-AI riêng (Tắt để chèn thẳng vào cột 2)
+                  </Label>
+                </div>
+
+
 
                 {logs.length > 0 && (
                   <div className="bg-slate-900 rounded-lg p-3 font-mono text-[10px] text-slate-300 space-y-1 max-h-32 overflow-y-auto">

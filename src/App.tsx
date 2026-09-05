@@ -27,9 +27,16 @@ export default function App() {
           <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-2xl mb-4">
             <BookOpen className="w-10 h-10 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-2">
-            Hỗ trợ Soạn giáo án
-          </h1>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 mb-2">
+            <h1 className="text-4xl font-bold tracking-tight text-slate-900">
+              Hỗ trợ Soạn giáo án
+            </h1>
+            <div className="hidden sm:block w-px h-8 bg-slate-300"></div>
+            <div className="text-left text-sm text-slate-500">
+              <span className="block text-[10px] uppercase tracking-wider font-semibold text-slate-400">Tác giả</span>
+              <span className="font-medium text-slate-700">Phạm Đình Quang<br/><span className="text-xs text-slate-500 font-normal">THCS Đường Hào Phân hiệu 4</span></span>
+            </div>
+          </div>
           <p className="text-lg text-slate-600">
             Tự động hóa việc điền thông tin tuần, tiết và ngày giảng vào giáo án Word.
           </p>
@@ -71,12 +78,6 @@ export default function App() {
 
           </motion.div>
         </Tabs>
-      </div>
-      
-      {/* Footer */}
-      <div className="mt-16 text-center text-sm text-slate-500 pb-8">
-        <p>Phần mềm được phát triển bởi:</p>
-        <p className="font-semibold text-slate-700 mt-1">Phạm Đình Quang - THCS Đường Hào Phân hiệu 4</p>
       </div>
 
       <Toaster position="top-center" richColors />

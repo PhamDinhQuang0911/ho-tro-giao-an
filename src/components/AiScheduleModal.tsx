@@ -3,10 +3,12 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Sparkles, Image as ImageIcon, Upload, Loader2 } from 'lucide-react';
+import { Sparkles, FileType2, Upload, Loader2, X, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { ScheduleItem } from '@/lib/word-utils';
-import { getGeminiSchedule } from '@/lib/gemini-api';
+import { getGeminiSchedule, FileData } from '@/lib/gemini-api';
+import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 
 const MODELS = [
   { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
@@ -25,8 +27,8 @@ interface AiScheduleModalProps {
 export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [teacherName, setTeacherName] = useState('');
-  const [mathLogic, setMathLogic] = useState('danxen'); // danxen, lientiep, all_dai, all_hinh
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [mathLogic, setMathLogic] = useState('Đại số và Hình học đan xen nhau');
+  const [files, setFiles] = useState<{file: File, name: string}[]>([]);
   const [aiModel, setAiModel] = useState('gemini-3.6-flash');
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,14 +39,49 @@ export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setImageFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files).map(f => ({
+        file: f,
+        name: files.length === 0 ? 'TKB Sáng' : 'TKB Chiều'
+      }));
+      setFiles(prev => [...prev, ...newFiles].slice(0, 2));
     }
   };
 
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const extractFileContent = async (file: File): Promise<FileData> => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const csv = XLSX.utils.sheet_to_csv(sheet);
+      return { type: 'text', data: csv, name: file.name };
+    }
+    
+    if (ext === 'doc' || ext === 'docx') {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return { type: 'text', data: result.value, name: file.name };
+    }
+    
+    // Assume image
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    const base64Image = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+    });
+    return { type: 'image', data: base64Image, name: file.name };
+  };
+
   const handleGenerate = async () => {
-    if (!imageFile) {
-      toast.error('Vui lòng chọn ảnh thời khóa biểu!');
+    if (files.length === 0) {
+      toast.error('Vui lòng tải lên ít nhất 1 file TKB!');
       return;
     }
     if (!teacherName) {
@@ -60,17 +97,11 @@ export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
 
     setIsLoading(true);
     try {
-      // 1. Convert image to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(imageFile);
+      const filesData = await Promise.all(files.map(f => extractFileContent(f.file)));
+      // rename files logic for prompt
+      filesData.forEach((fd, i) => fd.name = files[i].name);
       
-      const base64Image = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-      });
-
-      // 2. Call API
-      const result = await getGeminiSchedule(base64Image, teacherName, mathLogic, aiModel, apiKey);
+      const result = await getGeminiSchedule(filesData, teacherName, mathLogic, aiModel, apiKey);
       
       if (result && result.length > 0) {
         onScheduleGenerated(result);
@@ -93,44 +124,51 @@ export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
         <Sparkles className="w-4 h-4" />
         Lên lịch bằng AI
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-xl font-sans">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            Nhận diện Thời khóa biểu
+            Phân tích Thời khóa biểu (AI)
           </DialogTitle>
           <DialogDescription>
-            Tải lên ảnh thời khóa biểu, AI sẽ tự động tìm các tiết của bạn và lên lịch.
+            Hỗ trợ tải lên tối đa 2 file (Ảnh, Word, Excel) cho TKB Sáng và Chiều.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {/* File Upload */}
           <div className="space-y-2">
-            <Label>Ảnh thời khóa biểu</Label>
-            <div 
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
-            >
-              {imageFile ? (
-                <div className="text-center">
-                  <ImageIcon className="w-8 h-8 text-primary mx-auto mb-2" />
-                  <p className="text-sm font-medium">{imageFile.name}</p>
+            <Label>Files TKB (Tối đa 2 files)</Label>
+            <div className="flex gap-2 mb-2">
+              {files.map((f, i) => (
+                <div key={i} className="relative flex-1 border rounded-md p-3 flex flex-col items-center bg-slate-50">
+                  <button onClick={() => removeFile(i)} className="absolute top-1 right-1 p-1 hover:bg-red-100 text-red-500 rounded-full">
+                    <X className="w-3 h-3" />
+                  </button>
+                  <FileType2 className="w-6 h-6 text-primary mb-1" />
+                  <span className="text-xs font-semibold">{f.name}</span>
+                  <span className="text-[10px] text-slate-500 max-w-full truncate">{f.file.name}</span>
                 </div>
-              ) : (
-                <div className="text-center text-slate-500">
-                  <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Nhấn để tải ảnh lên (JPG, PNG)</p>
+              ))}
+              {files.length < 2 && (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 border-2 border-dashed border-slate-300 rounded-md p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
+                >
+                  <Plus className="w-6 h-6 text-slate-400 mb-1" />
+                  <span className="text-xs text-slate-500">Thêm TKB</span>
                 </div>
               )}
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                accept="image/*"
-                className="hidden" 
-                onChange={handleFileChange}
-              />
             </div>
+            
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept=".png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx"
+              className="hidden" 
+              multiple
+              onChange={handleFileChange}
+            />
           </div>
 
           <div className="space-y-2">
@@ -144,22 +182,18 @@ export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
 
           <div className="space-y-2">
             <Label>Phân bổ môn Toán (Đại số / Hình học)</Label>
-            <select 
-              className="w-full flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <Input 
+              placeholder="VD: 3 Đại, 1 Hình hoặc Đan xen..." 
               value={mathLogic}
               onChange={(e) => setMathLogic(e.target.value)}
-            >
-              <option value="danxen">Đại số và Hình học đan xen nhau</option>
-              <option value="lientiep">Liên tiếp 2 tiết Đại - 1 tiết Hình</option>
-              <option value="all_dai">Toàn bộ là Đại số</option>
-              <option value="all_hinh">Toàn bộ là Hình học</option>
-            </select>
+            />
+            <p className="text-[10px] text-slate-500">Bạn có thể tự do nhập quy tắc để AI tự động sắp xếp (VD: 2 tiết Đại, 2 tiết Hình).</p>
           </div>
           
           <div className="space-y-2">
             <Label>Mô hình AI</Label>
             <select 
-              className="w-full flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={aiModel}
               onChange={(e) => {
                 setAiModel(e.target.value);

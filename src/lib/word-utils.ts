@@ -8,7 +8,7 @@ export interface ScheduleItem {
   dayOfWeek: number; // 0 (Sun) to 6 (Sat)
   subject: string;
   className: string;
-  period?: string; // Optional period/session identifier (e.g., "Tiết 1")
+  period?: string;
 }
 
 export interface HeaderFooterSettings {
@@ -25,16 +25,18 @@ export interface ProcessingOptions {
   schedule: ScheduleItem[];
   subject: string;
   lessonCount: number;
-  classOffsets: Record<string, number>; // Map of className to startSessionIndex
+  createScheduleTable?: boolean;
+  classOffsets: Record<string, number>;
   headerFooter?: HeaderFooterSettings;
   nlsOptions?: NlsOptions;
   reflection?: ReflectionSettings;
-  weekOffset?: number; // 1 or 2
+  weekOffset?: number;
   mergePeriods?: boolean;
 }
 
 interface NlsOptions extends NLSProcessingOptions {
   apiKey: string;
+  addNlsColumn?: boolean;
 }
 
 /**
@@ -173,10 +175,28 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
     <w:p><w:r><w:br w:type="textWrapping"/></w:r></w:p>
   `;
   
-  // Append the schedule table directly to the header!
-  const scheduleTableXml = generateScheduleTableXml(options, style);
-  xml += scheduleTableXml;
-  
+  // Append schedule table or inline text based on createScheduleTable option
+  if (options.createScheduleTable !== false) {
+    // Default: show detailed table
+    const scheduleTableXml = generateScheduleTableXml(options, style);
+    xml += scheduleTableXml;
+  } else {
+    // Simple inline text: Tiết X. Ngày dạy: ...
+    const allDates = teachingSessions
+      .flatMap(s => s.dates !== 'N/A' ? s.dates.split(', ') : []);
+    const uniqueDates = Array.from(new Set(allDates)).join(', ');
+    const startPeriodNum = parseInt(periodNumber) || 0;
+    const periodText = lessonCount > 1
+      ? 'Tiết ' + startPeriodNum + ' - ' + (startPeriodNum + lessonCount - 1) + '.'
+      : 'Tiết ' + startPeriodNum + '.';
+    xml = '<w:p><w:pPr><w:tabs><w:tab w:val="right" w:leader="none" w:pos="9360"/></w:tabs></w:pPr>'
+        + '<w:r><w:rPr><w:b/>' + fontXml + sizeXml + '<w:color w:val="0070C0"/></w:rPr>'
+        + '<w:t xml:space="preserve">' + periodText + '   </w:t></w:r>'
+        + '<w:r><w:rPr><w:b/>' + fontXml + sizeXml + '<w:color w:val="0070C0"/></w:rPr>'
+        + '<w:tab/><w:t>Ngày dạy: ' + uniqueDates + '</w:t></w:r></w:p>'
+        + '<w:p><w:r><w:br w:type="textWrapping"/></w:r></w:p>';
+  }
+
   return { xml, earliestTeachingDate };
 }
 
@@ -820,7 +840,7 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
     const nlsContent = await generateCompetencyIntegration(prompt, options.nlsOptions.apiKey, options.nlsOptions.aiModel);
     
     onLog?.(">> Đang tích hợp Năng lực số vào file Word...");
-    await injectNLSIntoDocx(zip, nlsContent, (msg) => onLog?.(msg));
+    await injectNLSIntoDocx(zip, nlsContent, (msg) => onLog?.(msg), options.nlsOptions?.addNlsColumn ?? true);
   }
 
   const { xml: headerXml, earliestTeachingDate } = generateHeaderXml(options, baseStyle);

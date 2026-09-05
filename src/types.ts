@@ -48,9 +48,11 @@ export interface GeneratedNLSContent {
 
 export interface NLSProcessingOptions {
   subject: SubjectType;
+  createScheduleTable?: boolean;
   grade: GradeType;
   apiKey: string;
   config: ProcessingConfig;
+  addNlsColumn?: boolean;
   appendixText?: string;
   aiModel?: string;
 }

@@ -1,7 +1,13 @@
 import { ScheduleItem } from './word-utils';
 
+export interface FileData {
+  type: 'image' | 'text';
+  data: string; // Base64 for image, raw string for text
+  name: string; // File name (e.g. Sáng, Chiều)
+}
+
 export async function getGeminiSchedule(
-  base64Image: string, 
+  filesData: FileData[], 
   teacherName: string, 
   mathLogic: string, 
   model: string, 
@@ -9,19 +15,15 @@ export async function getGeminiSchedule(
 ): Promise<ScheduleItem[]> {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  // Remove data:image/...;base64, prefix
-  const base64Data = base64Image.split(',')[1];
-
   const prompt = `
 Bạn là một trợ lý ảo nhận diện thời khóa biểu của trường học.
-Nhiệm vụ: Trích xuất lịch dạy của giáo viên tên là "${teacherName}" từ ảnh thời khóa biểu.
+Nhiệm vụ: Trích xuất lịch dạy của giáo viên tên là "${teacherName}" từ dữ liệu thời khóa biểu được cung cấp.
 
-Chú ý đối với môn Toán:
-- Nếu phân bổ là "danxen" (Đan xen): các tiết Toán của cùng một lớp trong tuần sẽ luân phiên là "Toán (Đại số)" và "Toán (Hình học)".
-- Nếu "lientiep": 2 tiết đầu là "Toán (Đại số)", tiết 3 là "Toán (Hình học)".
-- Nếu "all_dai": Tất cả là "Toán (Đại số)".
-- Nếu "all_hinh": Tất cả là "Toán (Hình học)".
-Người dùng đã chọn: "${mathLogic}".
+Chú ý đối với môn Toán (nếu có chia phân môn):
+Người dùng đã chọn quy tắc: "${mathLogic}". Hãy phân bổ tên môn thành "Toán (Đại số)" hoặc "Toán (Hình học)" theo đúng quy tắc đó.
+Ví dụ nếu quy tắc là "3 Đại, 1 Hình", hãy lặp lại chuỗi: Đại, Đại, Đại, Hình cho các tiết Toán của cùng 1 lớp trong tuần.
+
+Dữ liệu có thể bao gồm TKB Sáng và Chiều (dưới dạng ảnh hoặc text). Hãy tổng hợp tất cả.
 
 Hãy trả về kết quả dưới dạng JSON theo đúng mảng các object như sau (không kèm theo văn bản nào khác):
 [
@@ -30,25 +32,30 @@ Hãy trả về kết quả dưới dạng JSON theo đúng mảng các object n
     "dayOfWeek": number, // 1 (Thứ 2) đến 6 (Thứ 7), 0 (Chủ nhật)
     "subject": "Tên môn học",
     "className": "Tên lớp",
-    "period": "Tiết X" // Ví dụ: "Tiết 1"
+    "period": "Tiết X" // Ví dụ: "Tiết 1" (lưu ý: số tiết tính theo buổi, sáng tiết 1-5, chiều tiết 1-5, bạn cứ ghi đúng số tiết trong TKB)
   }
 ]
 `;
 
+  const parts: any[] = [{ text: prompt }];
+
+  for (const file of filesData) {
+    if (file.type === 'image') {
+      const base64Data = file.data.split(',')[1];
+      parts.push({ text: `\nDữ liệu TKB (${file.name}): [Hình ảnh đính kèm]\n` });
+      parts.push({
+        inline_data: {
+          mime_type: "image/jpeg",
+          data: base64Data
+        }
+      });
+    } else {
+      parts.push({ text: `\nDữ liệu TKB (${file.name}):\n${file.data}\n` });
+    }
+  }
+
   const payload = {
-    contents: [
-      {
-        parts: [
-          { text: prompt },
-          {
-            inline_data: {
-              mime_type: "image/jpeg",
-              data: base64Data
-            }
-          }
-        ]
-      }
-    ],
+    contents: [{ parts }],
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json"

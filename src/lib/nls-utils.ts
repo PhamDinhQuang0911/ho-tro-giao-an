@@ -58,48 +58,51 @@ export function createIntegrationTextPrompt(keHoachText: string, monHoc: string,
   const mucDoInfo = LEVEL_MAPPING[khoiLop];
   if (!mucDoInfo) throw new Error(`Chưa hỗ trợ ${khoiLop}`);
 
-  const appendixInstruction = appendixText ? `\n\nNỘI DUNG PHỤ LỤC (Căn cứ bắt buộc để tích hợp):\n"""\n${appendixText.substring(0, 15000)}\n"""\nTUYỆT ĐỐI TUÂN THỦ PHỤ LỤC NÀY. Nếu bài học này KHÔNG có năng lực số/AI nào được quy định trong phụ lục, bạn TUYỆT ĐỐI KHÔNG ĐƯỢC thêm vào giáo án (hãy để trống các mục). Nếu bài học CÓ trong phụ lục, chỉ tích hợp ĐÚNG mã năng lực như phụ lục yêu cầu, tuyệt đối không được tự bịa ra mã khác.` : '';
+  const appendixInstruction = appendixText ? `\n\nNỘI DUNG PHỤ LỤC (Căn cứ bắt buộc - ưu tiên tuyệt đối):\n"""\n${appendixText.substring(0, 15000)}\n"""\nQUY TẮC VỀ PHỤ LỤC:\n- Nếu bài học KHÔNG có trong phụ lục: để trống toàn bộ phần hoạt động.\n- Nếu bài học CÓ trong phụ lục: PHẢI tích hợp TẤT CẢ các mã NLS/AI được quy định, không bỏ sót mã nào, không tự bịa mã mới.` : '';
 
-  return `Bạn là Chuyên gia Sư phạm số và Công nghệ giáo dục. Nhiệm vụ: Tích hợp Năng lực số (NLS) và Năng lực AI sâu, cụ thể vào giáo án ${monHoc} ${khoiLop}.
+  return `Bạn là Chuyên gia Sư phạm số. Nhiệm vụ: Tích hợp Năng lực số (NLS) và Năng lực AI vào giáo án ${monHoc} ${khoiLop}.
 
-Cấp độ NLS áp dụng: ${mucDoInfo.ten} (${mucDoInfo.kyHieu}). Nhiệm vụ: ${mucDoInfo.nhiemVu}.
+Cấp độ NLS: ${mucDoInfo.ten} (${mucDoInfo.kyHieu}). Đặc điểm: ${mucDoInfo.nhiemVu}.
 
-THAM CHIẾU KHUNG NLS:
+KHUNG NLS THAM CHIẾU:
 ${KHUNG_NLS_CONTEXT}${appendixInstruction}
 
-Dưới đây là nội dung giáo án gốc:
+NỘI DUNG GIÁO ÁN GỐC:
 """
 ${keHoachText.substring(0, 30000)} 
 """
 
-### CHIẾN LƯỢC TÍCH HỢP:
-- Dựa vào Phụ lục (nếu có) để quyết định bài này cần chèn NLS hay Năng lực AI.
-- Mọi nội dung liên quan đến NLS phải được dán nhãn [NLS].
-- Mọi nội dung liên quan đến Năng lực AI (giáo dục AI) phải được dán nhãn [AI].
+===== HƯỚNG DẪN TẠO ĐẦU RA =====
 
-### YÊU CẦU ĐẦU RA (ĐỊNH DẠNG TEXT THÔ BẮT BUỘC):
-Dùng chính xác các thẻ phân cách sau:
+Phân tích toàn bộ giáo án và tích hợp NLS/AI vào TẤT CẢ các hoạt động phù hợp (không giới hạn số lượng).
+Mọi nội dung NLS dán nhãn [NLS], Năng lực AI dán nhãn [AI].
 
 ===BAT_DAU_MUC_TIEU===
-(Viết mục tiêu. Dùng tiền tố [NLS] hoặc [AI]. Ví dụ: [NLS] 5.2.TC2b: Sử dụng GeoGebra để...)
+Liệt kê các mục tiêu NLS/AI cần thêm vào phần "Mục tiêu":
+[NLS] Mã.Cấp: Mô tả mục tiêu cụ thể
+[AI] Mô tả mục tiêu AI cụ thể
 ===KET_THUC_MUC_TIEU===
 
 ===BAT_DAU_HOC_LIEU===
-(Liệt kê thiết bị. Dùng tiền tố [NLS] hoặc [AI]. Ví dụ: [NLS] Máy tính cầm tay, App Desmos...)
+Liệt kê thiết bị/học liệu số cần thêm:
+[NLS] Tên thiết bị/phần mềm
+[AI] Tên công cụ AI
 ===KET_THUC_HOC_LIEU===
 
 ===BAT_DAU_HOAT_DONG===
-(Chọn 2-3 hoạt động tiêu biểu nhất để chèn. Tại phần HOẠT ĐỘNG, nội dung ghi vào cột NLS/AI phải THẬT VẮN TẮT, GỌN GÀNG, TỐI ĐA 15 TỪ mỗi hoạt động.)
+Với MỖI hoạt động trong giáo án có thể tích hợp NLS/AI, tạo 1 khối theo định dạng SAU (tuyệt đối KHÔNG viết từ ANCHOR hay CONTENT vào phần nội dung chèn):
 
-ANCHOR: (Trích dẫn chính xác 1 câu ngắn trong giáo án gốc làm điểm neo)
-CONTENT: ([NLS] hoặc [AI] ➤ Tích hợp: ... Mô tả ngắn gọn dưới 15 từ)
+NEO: (Chép nguyên văn 1 câu/cụm từ ngắn từ giáo án gốc để xác định vị trí - tối đa 10 từ)
+TICH_HOP: ([NLS] hoặc [AI]) ► Mã.Cấp: Mô tả hành động cụ thể của HS/GV, tối đa 20 từ
 ---PHAN_CACH_HOAT_DONG---
-ANCHOR: (Điểm neo 2...)
-CONTENT: ([AI] ➤ Tích hợp: ...)
+NEO: (Câu/cụm từ từ giáo án cho hoạt động tiếp theo)
+TICH_HOP: ([NLS] hoặc [AI]) ► Mã.Cấp: Mô tả...
 ===KET_THUC_HOAT_DONG===
 
 ===BAT_DAU_PHU_LUC===
-(Tạo Bảng tổng hợp mã năng lực. Trình bày dạng Markdown Table gồm 3 cột: Mã NLS/AI | Yêu cầu cần đạt | Học sinh làm gì (Cụ thể).)
+| Mã NLS/AI | Yêu cầu cần đạt | Học sinh thực hiện |
+|---|---|---|
+| Mã | Mô tả yêu cầu | Hành động cụ thể |
 ===KET_THUC_PHU_LUC===
 `;
 }
@@ -141,24 +144,32 @@ function parseStructuredResponse(text: string): GeneratedNLSContent {
   if (activitiesBlockMatch) {
     const rawActivities = activitiesBlockMatch[1].split('---PHAN_CACH_HOAT_DONG---');
     rawActivities.forEach(block => {
-      const anchorMatch = block.match(/ANCHOR:\s*([\s\S]*?)(?=CONTENT:|$)/);
-      const contentMatch = block.match(/CONTENT:\s*([\s\S]*?)$/);
+      // Support both old format (ANCHOR/CONTENT) and new format (NEO/TICH_HOP)
+      const anchorMatch = block.match(/(?:ANCHOR|NEO):\s*([\s\S]*?)(?=(?:CONTENT|TICH_HOP):|$)/);
+      const contentMatch = block.match(/(?:CONTENT|TICH_HOP):\s*([\s\S]*?)$/);
       if (anchorMatch && contentMatch) {
         let content = contentMatch[1].trim();
+        // Strip any leaked ANCHOR/CONTENT/NEO/TICH_HOP keywords from inside content
+        content = content.replace(/\n?(ANCHOR|NEO|CONTENT|TICH_HOP):\s*/g, ' ').trim();
+        
         let type: 'nls' | 'ai' = 'nls';
-        if (content.startsWith('[AI]')) {
+        if (content.toLowerCase().includes('[ai]')) {
             type = 'ai';
             content = content.replace(/^\[AI\]\s*/i, '');
-        } else if (content.startsWith('[NLS]')) {
+        } else if (content.toLowerCase().includes('[nls]')) {
             type = 'nls';
             content = content.replace(/^\[NLS\]\s*/i, '');
         }
 
-        result.activities_integration.push({
-          anchor_text: anchorMatch[1].trim(),
-          content: content,
-          type: type
-        });
+        const anchorText = anchorMatch[1].trim();
+        // Only add if anchor text is non-empty and content is non-empty
+        if (anchorText && content) {
+          result.activities_integration.push({
+            anchor_text: anchorText,
+            content: content,
+            type: type
+          });
+        }
       }
     });
   }
@@ -166,7 +177,8 @@ function parseStructuredResponse(text: string): GeneratedNLSContent {
   return result;
 }
 
-export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSContent, log: (msg: string) => void): Promise<void> {
+
+export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSContent, log: (msg: string) => void, addNlsColumn: boolean = true): Promise<void> {
   const docXmlFile = zip.file("word/document.xml");
   if (!docXmlFile) throw new Error("File word/document.xml không tồn tại.");
 
@@ -309,43 +321,52 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
             const firstRowText = firstRow.textContent || "";
             let hasNlsCol = firstRowText.toLowerCase().includes("nls") || firstRowText.toLowerCase().includes("năng lực số");
             
-            // Add column if missing
-            if (!hasNlsCol) {
-              const tblGrid = tableNode.getElementsByTagName("w:tblGrid")[0];
-              if (tblGrid) {
-                const newCol = xmlDoc.createElementNS(w, "w:gridCol");
-                newCol.setAttribute("w:w", "2500");
-                tblGrid.appendChild(newCol);
-              }
-              for (let i = 0; i < trs.length; i++) {
-                const tr = trs[i];
-                const newTc = xmlDoc.createElementNS(w, "w:tc");
-                const tcPr = xmlDoc.createElementNS(w, "w:tcPr");
-                const tcW = xmlDoc.createElementNS(w, "w:tcW");
-                tcW.setAttribute("w:w", "2500");
-                tcW.setAttribute("w:type", "dxa");
-                tcPr.appendChild(tcW);
-                newTc.appendChild(tcPr);
-                if (i === 0) {
-                  const shd = xmlDoc.createElementNS(w, "w:shd");
-                  shd.setAttribute("w:val", "clear");
-                  shd.setAttribute("w:color", "auto");
-                  shd.setAttribute("w:fill", "FFF2CC");
-                  tcPr.appendChild(shd);
-                  newTc.appendChild(createParagraphNode(xmlDoc, "NLS / AI", true, "000000", "Times New Roman", "26"));
-                } else {
-                  newTc.appendChild(createParagraphNode(xmlDoc, "", false, "000000", "Times New Roman", "26"));
+            if (addNlsColumn) {
+              // Add column if missing
+              if (!hasNlsCol) {
+                const tblGrid = tableNode.getElementsByTagName("w:tblGrid")[0];
+                if (tblGrid) {
+                  const newCol = xmlDoc.createElementNS(w, "w:gridCol");
+                  newCol.setAttribute("w:w", "2500");
+                  tblGrid.appendChild(newCol);
                 }
-                tr.appendChild(newTc);
+                for (let i = 0; i < trs.length; i++) {
+                  const tr = trs[i];
+                  const newTc = xmlDoc.createElementNS(w, "w:tc");
+                  const tcPr = xmlDoc.createElementNS(w, "w:tcPr");
+                  const tcW = xmlDoc.createElementNS(w, "w:tcW");
+                  tcW.setAttribute("w:w", "2500");
+                  tcW.setAttribute("w:type", "dxa");
+                  tcPr.appendChild(tcW);
+                  newTc.appendChild(tcPr);
+                  if (i === 0) {
+                    const shd = xmlDoc.createElementNS(w, "w:shd");
+                    shd.setAttribute("w:val", "clear");
+                    shd.setAttribute("w:color", "auto");
+                    shd.setAttribute("w:fill", "FFF2CC");
+                    tcPr.appendChild(shd);
+                    newTc.appendChild(createParagraphNode(xmlDoc, "NLS / AI", true, "000000", "Times New Roman", "26"));
+                  } else {
+                    newTc.appendChild(createParagraphNode(xmlDoc, "", false, "000000", "Times New Roman", "26"));
+                  }
+                  tr.appendChild(newTc);
+                }
+                hasNlsCol = true;
               }
-              hasNlsCol = true;
-            }
 
-            // Append content to the last cell of the current row
-            const tcs = rowNode.getElementsByTagName("w:tc");
-            if (tcs.length > 0) {
-              const lastTc = tcs[tcs.length - 1];
-              lastTc.appendChild(newPara);
+              // Append content to the last cell of the current row
+              const tcs = rowNode.getElementsByTagName("w:tc");
+              if (tcs.length > 0) {
+                const lastTc = tcs[tcs.length - 1];
+                lastTc.appendChild(newPara);
+              }
+            } else {
+              // Insert directly into the 2nd cell (or the last cell if there are < 2 cells)
+              const tcs = rowNode.getElementsByTagName("w:tc");
+              if (tcs.length > 0) {
+                const targetTc = tcs.length >= 2 ? tcs[1] : tcs[0];
+                targetTc.appendChild(newPara);
+              }
             }
           }
         } else {
