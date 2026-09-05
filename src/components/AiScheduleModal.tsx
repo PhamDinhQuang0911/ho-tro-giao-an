@@ -40,9 +40,10 @@ export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files).map(f => ({
+      const currentCount = files.length;
+      const newFiles = Array.from(e.target.files).slice(0, 2 - currentCount).map((f, idx) => ({
         file: f,
-        name: files.length === 0 ? 'TKB Sáng' : 'TKB Chiều'
+        name: (currentCount + idx) === 0 ? 'TKB Sáng (Buổi sáng)' : 'TKB Chiều (Buổi chiều)'
       }));
       setFiles(prev => [...prev, ...newFiles].slice(0, 2));
     }
@@ -156,7 +157,7 @@ export function AiScheduleModal({ onScheduleGenerated }: AiScheduleModalProps) {
                   className="flex-1 border-2 border-dashed border-slate-300 rounded-md p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
                 >
                   <Plus className="w-6 h-6 text-slate-400 mb-1" />
-                  <span className="text-xs text-slate-500">Thêm TKB</span>
+                  <span className="text-xs text-slate-500">{files.length === 0 ? "Thêm TKB Sáng" : "Thêm TKB Chiều"}</span>
                 </div>
               )}
             </div>

@@ -32,7 +32,7 @@ Hãy trả về kết quả dưới dạng JSON theo đúng mảng các object n
     "dayOfWeek": number, // 1 (Thứ 2) đến 6 (Thứ 7), 0 (Chủ nhật)
     "subject": "Tên môn học",
     "className": "Tên lớp",
-    "period": "Tiết X" // Ví dụ: "Tiết 1" (lưu ý: số tiết tính theo buổi, sáng tiết 1-5, chiều tiết 1-5, bạn cứ ghi đúng số tiết trong TKB)
+    "period": "Tiết X" // Ví dụ: "Tiết 1". QUAN TRỌNG: Buổi sáng tiết 1-5 giữ nguyên. Buổi CHIỀU: tiết 1 chiều = tiết 6, tiết 2 chiều = tiết 7, tiết 3 chiều = tiết 8, tiết 4 chiều = tiết 9, tiết 5 chiều = tiết 10. Hãy cộng thêm 5 vào số tiết chiều.
   }
 ]
 `;

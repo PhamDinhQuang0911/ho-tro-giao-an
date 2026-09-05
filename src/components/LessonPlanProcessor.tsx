@@ -309,7 +309,10 @@ export function LessonPlanProcessor() {
         classOffsets: classOffsets,
         mergePeriods: mergePeriods,
         headerFooter: hfSettings || undefined,
-        reflection: enableReflection && reflectionSettings?.enabled ? reflectionSettings : undefined,
+        reflection: enableReflection && reflectionSettings?.enabled ? {
+          ...reflectionSettings,
+          signatureImage: (reflectionSettings?.insertSignature && savedSignatureUrl) ? savedSignatureUrl : undefined
+        } : undefined,
         nlsOptions: enableNLS ? {
           apiKey: nlsApiKey,
           subject: selectedSubject as SubjectType,
@@ -321,7 +324,8 @@ export function LessonPlanProcessor() {
             insertMaterials: true,
             insertActivities: true,
             appendTable: true
-          }
+          },
+          addNlsColumn: addNlsColumn
         } : undefined
       };
 
