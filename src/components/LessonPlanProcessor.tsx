@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool } from 'lucide-react';
+import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool, Coffee, Youtube } from 'lucide-react';
 import { SignatureModal } from './SignatureModal';
 import { AppendixManager } from './AppendixManager';
+import { CoffeeModal } from './CoffeeModal';
 import { processWordFile, ScheduleItem, ProcessingOptions, HeaderFooterSettings } from '@/lib/word-utils';
 import { toast } from 'sonner';
 import { format, addDays, startOfWeek } from 'date-fns';
@@ -82,6 +83,7 @@ export function LessonPlanProcessor() {
   const [logs, setLogs] = useState<string[]>([]);
   const [showSigModal, setShowSigModal] = useState(false);
   const [savedSignatureUrl, setSavedSignatureUrl] = useState('');
+  const [showCoffeeModal, setShowCoffeeModal] = useState(false);
   
   const updateReflection = (key: string, value: any) => {
     setReflectionSettings(prev => {
@@ -359,14 +361,26 @@ export function LessonPlanProcessor() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileUp className="w-5 h-5 text-primary" />
-                Thông tin Giáo án
-              </CardTitle>
-              <CardDescription>
-                Nhập các thông tin cơ bản để phần mềm tự động điền vào giáo án.
-              </CardDescription>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileUp className="w-5 h-5 text-primary" />
+                  Thông tin Giáo án
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Nhập các thông tin cơ bản để phần mềm tự động điền vào giáo án.
+                </CardDescription>
+              </div>
+              <a
+                href="https://youtu.be/hr-jLaG35hM"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-full transition-all shadow-sm hover:scale-105 shrink-0 self-start sm:self-center"
+                title="Xem video hướng dẫn Soạn giáo án trên YouTube"
+              >
+                <Youtube className="w-4 h-4 text-red-600" />
+                Video hướng dẫn
+              </a>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -758,6 +772,20 @@ export function LessonPlanProcessor() {
                   </Label>
                 </div>
 
+                <div className="flex items-center justify-between pt-2 border-t border-teal-100 text-xs">
+                  <span className="text-teal-800 text-[11px] font-medium">Ủng hộ tác giả:</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCoffeeModal(true)}
+                    className="h-7 px-2.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 font-medium flex items-center gap-1.5 rounded-full"
+                  >
+                    <Coffee className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                    Mời tác giả 1 ly cafe
+                  </Button>
+                </div>
+
 
 
                 {logs.length > 0 && (
@@ -843,6 +871,10 @@ export function LessonPlanProcessor() {
           localStorage.setItem('lesson-plan-signature-image', img);
           updateReflection('insertSignature', true);
         }}
+      />
+      <CoffeeModal 
+        open={showCoffeeModal} 
+        onOpenChange={setShowCoffeeModal} 
       />
     </div>
   );

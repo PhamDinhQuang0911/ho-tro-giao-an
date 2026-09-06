@@ -48,6 +48,129 @@ KHUNG NĂNG LỰC SỐ (Tóm tắt cho AI):
 6. Trí tuệ nhân tạo (VI): Hiểu biết, sử dụng có đạo đức và đánh giá công cụ AI.
 `;
 
+function getNextElement(node: Node | null): Element | null {
+  let curr = node ? node.nextSibling : null;
+  while (curr) {
+    if (curr.nodeType === 1) return curr as Element;
+    curr = curr.nextSibling;
+  }
+  return null;
+}
+
+export function isOldNlsOrAiHeading(text: string): boolean {
+  const lower = text.trim().toLowerCase();
+  if (!lower) return false;
+
+  // Old NLS Headings:
+  // "2.3. Các NLS được phát triển:", "2.3. NLS được phát triển:", "2.3. Năng lực số:", "Năng lực số:", "2.3. NLS:", "Các NLS:", "Mục tiêu NLS:"
+  if (/^(\d+(\.\d+)*\s*[\.:]?)?\s*(các\s+)?(nls|năng\s+lực\s+số)(\s+được\s+phát\s+triển)?\s*[:\.]?$/i.test(lower)) {
+    return true;
+  }
+  if (lower.startsWith("mục tiêu nls") || lower.startsWith("mục tiêu năng lực số") || lower.startsWith("các nls")) {
+    return true;
+  }
+
+  // Old AI Headings:
+  // "2.4. Năng lực AI:", "2.3. Năng lực AI:", "Năng lực AI:", "Năng lực trí tuệ nhân tạo:", "Trí tuệ nhân tạo (AI):"
+  if (/^(\d+(\.\d+)*\s*[\.:]?)?\s*(năng\s+lực\s+ai|trí\s+tuệ\s+nhân\s+tạo(\s*\(ai\))?|năng\s+lực\s+trí\s+tuệ\s+nhân\s+tạo)\s*[:\.]?$/i.test(lower)) {
+    return true;
+  }
+  if (lower.startsWith("mục tiêu năng lực ai") || lower.startsWith("mục tiêu trí tuệ nhân tạo")) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isSectionBoundary(text: string): boolean {
+  const lower = text.trim().toLowerCase();
+  if (!lower) return false;
+
+  // Section 3: Phẩm chất (e.g., "3. Về phẩm chất:", "3. Phẩm chất:", "III. Phẩm chất:")
+  if (/^\s*(3\.\s*(về\s*)?phẩm\s*chất|iii\.\s*(về\s*)?phẩm\s*chất|phẩm\s*chất\s*[:\.])/i.test(lower)) return true;
+  if (/^\s*3\.\s+[A-ZĐ]/i.test(text.trim())) return true;
+
+  // Section II: Thiết bị dạy học và học liệu
+  if (/^\s*([ivx]+\.|ii\.)\s*(thiết\s*bị|chuẩn\s*bị|học\s*liệu)/i.test(lower)) return true;
+  if (/^[ivx]+\.\s+[A-ZĐ]/i.test(text.trim())) return true;
+
+  // Next top sections or activities
+  if (/^\s*(iii\.|b\.)\s*(tiến\s*trình|hoạt\s*động)/i.test(lower)) return true;
+
+  return false;
+}
+
+export function isAppendixOrSummaryHeading(text: string): boolean {
+  const lower = text.trim().toLowerCase();
+  return (
+    lower.includes("bảng tổng hợp mã năng lực số") ||
+    lower.includes("bảng tổng hợp mã nls") ||
+    lower.includes("bảng phân tích phát triển nls") ||
+    lower.includes("bảng phân tích nls") ||
+    lower.includes("bảng tổng hợp nls") ||
+    lower.includes("bảng năng lực số") ||
+    lower.includes("phụ lục: bảng tổng hợp") ||
+    (lower.startsWith("phụ lục") && (lower.includes("nls") || lower.includes("năng lực số") || lower.includes("ai")))
+  );
+}
+
+export function stripExistingNLSFromText(text: string): string {
+  if (!text) return "";
+  const lines = text.split('\n');
+  const cleaned: string[] = [];
+  let inOldNlsObjectives = false;
+  let inOldAppendix = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
+
+    // Check if entered appendix or summary table at the end
+    if (isAppendixOrSummaryHeading(trimmed)) {
+      inOldAppendix = true;
+      continue;
+    }
+    if (inOldAppendix) continue;
+
+    // Check if entered old NLS/AI objectives header
+    if (isOldNlsOrAiHeading(trimmed)) {
+      inOldNlsObjectives = true;
+      continue;
+    }
+
+    if (inOldNlsObjectives) {
+      if (
+        isSectionBoundary(trimmed) ||
+        /^\s*2\.[12]\.\s*/i.test(lower) ||
+        /^\s*năng\s+lực\s+(chung|đặc\s+thù|riêng)/i.test(lower)
+      ) {
+        inOldNlsObjectives = false;
+      } else {
+        continue;
+      }
+    }
+
+    // Skip lines starting with or containing old NLS markers or codes
+    if (
+      lower.startsWith("học liệu số:") ||
+      trimmed.startsWith("[NLS]") ||
+      trimmed.startsWith("[AI]") ||
+      /^\s*\d+\.\d+\.(tc|cb|nc)[a-z0-9]*\s*:/i.test(trimmed)
+    ) {
+      continue;
+    }
+
+    if (trimmed.includes("►") && (trimmed.includes("TC") || trimmed.includes("CB") || trimmed.includes("NC") || lower.includes("nls") || lower.includes("ai"))) {
+      continue;
+    }
+
+    cleaned.push(line);
+  }
+
+  return cleaned.join('\n');
+}
+
 export async function extractTextFromDocx(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.extractRawText({ arrayBuffer });
@@ -58,7 +181,9 @@ export function createIntegrationTextPrompt(keHoachText: string, monHoc: string,
   const mucDoInfo = LEVEL_MAPPING[khoiLop];
   if (!mucDoInfo) throw new Error(`Chưa hỗ trợ ${khoiLop}`);
 
-  const appendixInstruction = appendixText ? `\n\nNỘI DUNG PHỤ LỤC (Căn cứ bắt buộc - ưu tiên tuyệt đối):\n"""\n${appendixText.substring(0, 15000)}\n"""\nQUY TẮC VỀ PHỤ LỤC:\n- Nếu bài học KHÔNG có trong phụ lục: để trống toàn bộ phần hoạt động.\n- Nếu bài học CÓ trong phụ lục: PHẢI tích hợp TẤT CẢ các mã NLS/AI được quy định, không bỏ sót mã nào, không tự bịa mã mới.` : '';
+  const appendixInstruction = appendixText ? `\n\nNỘI DUNG PHỤ LỤC (Căn cứ bắt buộc - ưu tiên tuyệt đối):\n"""\n${appendixText.substring(0, 15000)}\n"""\nQUY TẮC BẮT BUỘC VỀ PHỤ LỤC & GIÁO ÁN CŨ:\n- Nếu giáo án gốc ĐÃ CÓ sẵn các mã NLS hoặc năng lực AI cũ: BẠN PHẢI BỎ QUA HOÀN TOÀN CÁC MÃ CŨ ĐÓ, KHÔNG giữ lại bất kỳ mã NLS/AI cũ nào.\n- BẮT BUỘC CHỈ CĂN CỨ VÀO PHỤ LỤC (Phụ lục 1 / Phụ lục 3): Xác định đúng bài học trong phụ lục để gán lại các mã NLS/AI mới theo phụ lục quy định.\n- Nếu bài học KHÔNG có trong phụ lục: để trống toàn bộ phần hoạt động, không tự bịa mã mới.\n- Nếu bài học CÓ trong phụ lục: PHẢI tích hợp TẤT CẢ các mã NLS/AI được quy định trong phụ lục, không bỏ sót mã nào, không tự bịa mã mới.` : `\n\nQUY TẮC VỀ GIÁO ÁN ĐÃ CÓ NLS/AI CŨ:\n- Nếu giáo án gốc đã có sẵn các mã NLS hoặc năng lực AI cũ: BỎ QUA HOÀN TOÀN các mã cũ đó và tạo lại chuẩn xác theo khung năng lực số quy định.`;
+
+  const cleanKeHoachText = stripExistingNLSFromText(keHoachText);
 
   return `Bạn là Chuyên gia Sư phạm số. Nhiệm vụ: Tích hợp Năng lực số (NLS) và Năng lực AI vào giáo án ${monHoc} ${khoiLop}.
 
@@ -67,9 +192,9 @@ Cấp độ NLS: ${mucDoInfo.ten} (${mucDoInfo.kyHieu}). Đặc điểm: ${mucDo
 KHUNG NLS THAM CHIẾU:
 ${KHUNG_NLS_CONTEXT}${appendixInstruction}
 
-NỘI DUNG GIÁO ÁN GỐC:
+NỘI DUNG GIÁO ÁN GỐC (Đã làm sạch mã cũ):
 """
-${keHoachText.substring(0, 30000)} 
+${cleanKeHoachText.substring(0, 30000)} 
 """
 
 ===== HƯỚNG DẪN TẠO ĐẦU RA =====
@@ -178,6 +303,246 @@ function parseStructuredResponse(text: string): GeneratedNLSContent {
 }
 
 
+export function removeExistingNLSFromDocx(xmlDoc: Document, log?: (msg: string) => void, addNlsColumn: boolean = true): void {
+  const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  let cleanedCount = 0;
+
+  // 1. Remove Old Appendix / Summary tables from body
+  const body = xmlDoc.getElementsByTagNameNS(w, "body")[0];
+  if (body) {
+    const bodyChildren = Array.from(body.childNodes);
+    let appendixFound = false;
+    for (let i = 0; i < bodyChildren.length; i++) {
+      const node = bodyChildren[i];
+      const text = (node.textContent || "").trim();
+      if (isAppendixOrSummaryHeading(text)) {
+        appendixFound = true;
+      }
+      if (appendixFound) {
+        body.removeChild(node);
+        cleanedCount++;
+      }
+    }
+  }
+
+  // Also scan all tables for standalone NLS summary tables
+  const allTables = Array.from(xmlDoc.getElementsByTagName("w:tbl"));
+  allTables.forEach(table => {
+    const trs = Array.from(table.getElementsByTagName("w:tr"));
+    if (trs.length === 0) return;
+    const headerText = (trs[0].textContent || "").toLowerCase();
+    if (
+      (headerText.includes("năng lực số") || headerText.includes("nls")) &&
+      (headerText.includes("tổ chức dạy học") || headerText.includes("yêu cầu cần đạt") || headerText.includes("tên hoạt động") || headerText.includes("bảng phân tích"))
+    ) {
+      const prev = table.previousSibling;
+      if (prev && prev.nodeType === 1 && isAppendixOrSummaryHeading(prev.textContent || "")) {
+        prev.parentNode?.removeChild(prev);
+        cleanedCount++;
+      }
+      table.parentNode?.removeChild(table);
+      cleanedCount++;
+    }
+  });
+
+  // 2. Remove Old NLS/AI from Objectives (Mục tiêu)
+  const allParas = Array.from(xmlDoc.getElementsByTagName("w:p"));
+  const parasToRemove: Element[] = [];
+
+  for (let i = 0; i < allParas.length; i++) {
+    const p = allParas[i];
+    let isInsideTable = false;
+    let parent = p.parentNode;
+    while (parent && parent.nodeName !== "w:body") {
+      if (parent.nodeName === "w:tbl") {
+        isInsideTable = true;
+        break;
+      }
+      parent = parent.parentNode;
+    }
+    if (isInsideTable) continue;
+
+    const text = (p.textContent || "").trim();
+
+    // Detect NLS / AI heading in Objectives:
+    if (isOldNlsOrAiHeading(text)) {
+      if (!parasToRemove.includes(p)) parasToRemove.push(p);
+
+      let nextElem = getNextElement(p);
+      while (nextElem && nextElem.nodeName === "w:p") {
+        const nextText = (nextElem.textContent || "").trim();
+
+        // Stop if we hit a boundary: next section header or another NLS/AI heading
+        if (isSectionBoundary(nextText) || isOldNlsOrAiHeading(nextText)) {
+          break;
+        }
+
+        if (!parasToRemove.includes(nextElem)) {
+          parasToRemove.push(nextElem);
+        }
+        nextElem = getNextElement(nextElem);
+      }
+    }
+
+    const lower = text.toLowerCase();
+    if (
+      lower.startsWith("học liệu số:") ||
+      text.startsWith("[NLS]") ||
+      text.startsWith("[AI]") ||
+      /^\s*\d+\.\d+\.(tc|cb|nc)[a-z0-9]*\s*:/i.test(text)
+    ) {
+      if (!parasToRemove.includes(p)) parasToRemove.push(p);
+    }
+  }
+
+  parasToRemove.forEach(p => {
+    p.parentNode?.removeChild(p);
+    cleanedCount++;
+  });
+
+  // 3. Remove Old Materials Additions ("Học liệu số: ...", etc.)
+  const remainingParas = Array.from(xmlDoc.getElementsByTagName("w:p"));
+  remainingParas.forEach(p => {
+    let isInsideTable = false;
+    let parent = p.parentNode;
+    while (parent && parent.nodeName !== "w:body") {
+      if (parent.nodeName === "w:tbl") {
+        isInsideTable = true;
+        break;
+      }
+      parent = parent.parentNode;
+    }
+    if (isInsideTable) return;
+
+    const text = (p.textContent || "").trim();
+    const lower = text.toLowerCase();
+    if (
+      lower.startsWith("học liệu số:") ||
+      text.startsWith("[NLS]") ||
+      text.startsWith("[AI]") ||
+      /^\s*\d+\.\d+\.(tc|cb|nc)[a-z0-9]*\s*:/i.test(text)
+    ) {
+      p.parentNode?.removeChild(p);
+      cleanedCount++;
+    }
+  });
+
+  // 4. Remove Old NLS/AI from Activities (Tables and paragraphs)
+  const activityTables = Array.from(xmlDoc.getElementsByTagName("w:tbl"));
+  activityTables.forEach(table => {
+    const trs = Array.from(table.getElementsByTagName("w:tr"));
+    if (trs.length === 0) return;
+
+    // Check if table has an NLS column in header row
+    const firstRow = trs[0];
+    const headerTcs = Array.from(firstRow.getElementsByTagName("w:tc"));
+    let nlsColIndex = -1;
+    for (let c = 0; c < headerTcs.length; c++) {
+      const txt = (headerTcs[c].textContent || "").trim().toLowerCase();
+      if (txt.includes("nls") || txt.includes("năng lực số")) {
+        nlsColIndex = c;
+        break;
+      }
+    }
+
+    if (nlsColIndex !== -1) {
+      if (addNlsColumn) {
+        // Clear all data cells in that column
+        for (let r = 1; r < trs.length; r++) {
+          const rowTcs = Array.from(trs[r].getElementsByTagName("w:tc"));
+          if (rowTcs.length > nlsColIndex) {
+            const tc = rowTcs[nlsColIndex];
+            const tcParas = Array.from(tc.getElementsByTagName("w:p"));
+            tcParas.forEach((p, idx) => {
+              if (idx === 0) {
+                const ts = Array.from(p.getElementsByTagName("w:t"));
+                ts.forEach(t => { t.textContent = ""; });
+              } else {
+                tc.removeChild(p);
+              }
+            });
+            cleanedCount++;
+          }
+        }
+      } else {
+        // Remove the column completely
+        const tblGrid = table.getElementsByTagName("w:tblGrid")[0];
+        if (tblGrid) {
+          const gridCols = Array.from(tblGrid.getElementsByTagName("w:gridCol"));
+          if (gridCols.length > nlsColIndex) {
+            gridCols[nlsColIndex].parentNode?.removeChild(gridCols[nlsColIndex]);
+          }
+        }
+        trs.forEach(tr => {
+          const tcs = Array.from(tr.getElementsByTagName("w:tc"));
+          if (tcs.length > nlsColIndex) {
+            tcs[nlsColIndex].parentNode?.removeChild(tcs[nlsColIndex]);
+          }
+        });
+        cleanedCount++;
+      }
+    }
+
+    // Also remove inline injected paragraphs from any other cells in the table
+    trs.forEach(tr => {
+      const tcs = Array.from(tr.getElementsByTagName("w:tc"));
+      tcs.forEach((tc, cIdx) => {
+        if (addNlsColumn && cIdx === nlsColIndex) return;
+        const paras = Array.from(tc.getElementsByTagName("w:p"));
+        paras.forEach(p => {
+          const pText = (p.textContent || "").trim();
+          const pLower = pText.toLowerCase();
+          if (
+            (pText.includes("►") && (pText.includes("TC") || pText.includes("CB") || pText.includes("NC") || pLower.includes("nls") || pLower.includes("ai"))) ||
+            pText.startsWith("[NLS]") ||
+            pText.startsWith("[AI]") ||
+            /^\s*\d+\.\d+\.(tc|cb|nc)[a-z0-9]*\s*:/i.test(pText)
+          ) {
+            if (paras.length === 1) {
+              const ts = Array.from(p.getElementsByTagName("w:t"));
+              ts.forEach(t => { t.textContent = ""; });
+            } else {
+              tc.removeChild(p);
+            }
+            cleanedCount++;
+          }
+        });
+      });
+    });
+  });
+
+  // Paragraphs outside tables in body
+  const allFinalParas = Array.from(xmlDoc.getElementsByTagName("w:p"));
+  allFinalParas.forEach(p => {
+    let isInsideTable = false;
+    let parent = p.parentNode;
+    while (parent && parent.nodeName !== "w:body") {
+      if (parent.nodeName === "w:tbl") {
+        isInsideTable = true;
+        break;
+      }
+      parent = parent.parentNode;
+    }
+    if (isInsideTable) return;
+
+    const text = (p.textContent || "").trim();
+    const pLower = text.toLowerCase();
+    if (
+      (text.includes("►") && (text.includes("TC") || text.includes("CB") || text.includes("NC") || pLower.includes("nls") || pLower.includes("ai"))) ||
+      text.startsWith("[NLS]") ||
+      text.startsWith("[AI]") ||
+      /^\s*\d+\.\d+\.(tc|cb|nc)[a-z0-9]*\s*:/i.test(text)
+    ) {
+      p.parentNode?.removeChild(p);
+      cleanedCount++;
+    }
+  });
+
+  if (cleanedCount > 0 && log) {
+    log(`>> Đã phát hiện và xóa ${cleanedCount} mục mã NLS / AI cũ trong giáo án.`);
+  }
+}
+
 export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSContent, log: (msg: string) => void, addNlsColumn: boolean = true): Promise<void> {
   const docXmlFile = zip.file("word/document.xml");
   if (!docXmlFile) throw new Error("File word/document.xml không tồn tại.");
@@ -186,6 +551,9 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(docXmlStr, "application/xml");
   const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+  // Clean old NLS/AI first before injecting fresh content
+  removeExistingNLSFromDocx(xmlDoc, log, addNlsColumn);
 
   const baseStyle = extractBaseStyles(xmlDoc);
 
@@ -198,72 +566,149 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
 
   // 1. Insert Objectives
   if (nlsContent.objectives_addition) {
-    const objectivesPara = findParagraphByText(xmlDoc, ["Về năng lực", "Năng lực:", "2. Năng lực", "Năng lực đặc thù", "Năng lực riêng"]);
+    const allParas = Array.from(xmlDoc.getElementsByTagName("w:p"));
+    let objectivesPara: Element | null = null;
+    for (let i = 0; i < allParas.length; i++) {
+      const txt = (allParas[i].textContent || "").trim().toLowerCase();
+      if (
+        txt.includes("về năng lực") ||
+        txt.includes("2. năng lực") ||
+        txt === "năng lực:" ||
+        txt === "năng lực" ||
+        txt.match(/^2\.\s*năng\s+lực/i)
+      ) {
+        objectivesPara = allParas[i];
+        break;
+      }
+    }
+
     if (objectivesPara) {
       const style = getParaStyle(objectivesPara);
-      const font = style.font || baseStyle.font;
-      const size = style.size || baseStyle.size;
-      
+      const font = style.font || baseStyle.font || "Times New Roman";
+      const size = style.size || baseStyle.size || "28";
+
       const lines = nlsContent.objectives_addition.split('\n').filter(l => l.trim() !== '');
       const nlsLines = lines.filter(l => l.toUpperCase().includes('[NLS]'));
       const aiLines = lines.filter(l => l.toUpperCase().includes('[AI]'));
-      
+
+      // Find targetNode: boundary paragraph of section 2 (e.g. "3. Về phẩm chất:" or "II. Thiết bị dạy học")
       let targetNode: Element | null = null;
-      const allParas = Array.from(xmlDoc.getElementsByTagName("w:p"));
       const objIndex = allParas.indexOf(objectivesPara);
       if (objIndex !== -1) {
-          for (let i = objIndex + 1; i < allParas.length; i++) {
-              const txt = (allParas[i].textContent || "").trim().toLowerCase();
-              if (txt.includes("thiết bị") || txt.includes("học liệu") || txt.includes("phẩm chất") || txt.match(/^[ivx]+\./) || txt.match(/^3\./)) {
-                  targetNode = allParas[i];
-                  break;
-              }
+        for (let i = objIndex + 1; i < allParas.length; i++) {
+          const txt = (allParas[i].textContent || "").trim();
+          if (isSectionBoundary(txt)) {
+            targetNode = allParas[i];
+            break;
           }
+        }
       }
-      
+
+      if (!targetNode) {
+        // Fallback: search before first table or end of body
+        const tables = Array.from(xmlDoc.getElementsByTagName("w:tbl"));
+        if (tables.length > 0) {
+          targetNode = tables[0];
+        }
+      }
+
+      // Detect subheadings in Section 2
       let hasChung = false;
       let hasRieng = false;
-      
-      // Rename existing paragraphs if they match exactly
-      for (let i = 0; i < allParas.length; i++) {
-        const textContent = (allParas[i].textContent || "").trim().toLowerCase();
-        if (textContent === "năng lực chung" || textContent === "năng lực chung:") {
-           replaceParagraphText(allParas[i], "2.1. Năng lực chung:");
-           hasChung = true;
-        } else if (textContent === "năng lực riêng" || textContent === "năng lực riêng:" || textContent === "năng lực đặc thù" || textContent === "năng lực đặc thù:") {
-           replaceParagraphText(allParas[i], "2.2. Năng lực riêng:");
-           hasRieng = true;
+      let chungHeadingPara: Element | null = null;
+      let riengHeadingPara: Element | null = null;
+
+      const searchEndIdx = targetNode ? allParas.indexOf(targetNode) : allParas.length;
+      for (let i = objIndex + 1; i < searchEndIdx; i++) {
+        const p = allParas[i];
+        const txt = (p.textContent || "").trim();
+        const lower = txt.toLowerCase();
+
+        const isBullet = txt.startsWith('-') || txt.startsWith('+') || txt.startsWith('•') || txt.startsWith('*');
+
+        if (lower.includes("năng lực chung") && !lower.includes("năng lực chung và")) {
+          hasChung = true;
+          chungHeadingPara = p;
+        } else if (!isBullet) {
+          if (
+            lower.match(/^2\.2\.\s*năng\s+lực/i) ||
+            lower.match(/^b\)\s*năng\s+lực/i) ||
+            lower.match(/^năng\s+lực\s+(đặc\s+thù|riêng|chuyên\s+biệt|tin\s+học|toán|văn|ngữ\s+văn|khoa\s+học|vật\s+lí|hóa\s+học|sinh\s+học|lịch\s+sử|địa\s+l(í|ý)|tiếng\s+anh|công\s+nghệ|âm\s+nhạc|mĩ\s+thuật|thể\s+dục|gdcd|gdqp|hđtn)/i)
+          ) {
+            hasRieng = true;
+            riengHeadingPara = p;
+          }
+        }
+      }
+
+      // Normalize 2.1. Năng lực chung:
+      if (chungHeadingPara) {
+        const cText = (chungHeadingPara.textContent || "").trim();
+        if (cText.toLowerCase() === "năng lực chung" || cText.toLowerCase() === "năng lực chung:") {
+          replaceParagraphText(chungHeadingPara, "2.1. Năng lực chung:");
+        }
+      }
+
+      // Normalize 2.2. Năng lực ...:
+      if (riengHeadingPara) {
+        const rText = (riengHeadingPara.textContent || "").trim();
+        if (!rText.startsWith("2.2.")) {
+          const cleanHeading = rText.replace(/^[a-z0-9\.\)\-\:]+\s*/i, '').trim();
+          replaceParagraphText(riengHeadingPara, `2.2. ${cleanHeading}`);
         }
       }
 
       let nlsHeaderTitle = "2.3. Năng lực số:";
       let aiHeaderTitle = "2.4. Năng lực AI:";
-      
-      if (!hasChung && !hasRieng) {
-          nlsHeaderTitle = "2.2. Năng lực số:";
-          aiHeaderTitle = "2.3. Năng lực AI:";
-          const chungRiengHeader = createParagraphNode(xmlDoc, "2.1. Năng lực chung và riêng:", true, "000000", "Times New Roman", "26", true);
-          objectivesPara.parentNode?.insertBefore(chungRiengHeader, objectivesPara.nextSibling);
+
+      if (!hasRieng) {
+        nlsHeaderTitle = "2.2. Năng lực số:";
+        aiHeaderTitle = "2.3. Năng lực AI:";
+        if (!hasChung) {
+          const existingChungRieng = allParas.find(p => (p.textContent || "").toLowerCase().includes("năng lực chung và riêng"));
+          if (!existingChungRieng) {
+            const chungRiengHeader = createParagraphNode(xmlDoc, "2.1. Năng lực chung và riêng:", true, "000000", font, size, false);
+            objectivesPara.parentNode?.insertBefore(chungRiengHeader, objectivesPara.nextSibling);
+          }
+        }
       }
-      
+
+      // Insert NLS
       if (nlsLines.length > 0) {
-          const nlsHeader = createParagraphNode(xmlDoc, nlsHeaderTitle, true, "FF0000", "Times New Roman", "26", true);
-          if (targetNode) targetNode.parentNode?.insertBefore(nlsHeader, targetNode);
-          nlsLines.forEach(line => {
-              const cleanedLine = cleanPrefix(line.trim()).replace(/^-/, '').trim();
-              const newPara = createParagraphNode(xmlDoc, "- " + cleanedLine, false, "000000", "Times New Roman", "26");
-              if (targetNode) targetNode.parentNode?.insertBefore(newPara, targetNode);
-          });
+        const nlsHeader = createParagraphNode(xmlDoc, nlsHeaderTitle, true, "000000", font, size, false);
+        if (targetNode) {
+          targetNode.parentNode?.insertBefore(nlsHeader, targetNode);
+        } else {
+          objectivesPara.parentNode?.appendChild(nlsHeader);
+        }
+        nlsLines.forEach(line => {
+          const cleanedLine = cleanPrefix(line.trim()).replace(/^-/, '').trim();
+          const newPara = createParagraphNode(xmlDoc, "- " + cleanedLine, false, "000000", font, size);
+          if (targetNode) {
+            targetNode.parentNode?.insertBefore(newPara, targetNode);
+          } else {
+            objectivesPara.parentNode?.appendChild(newPara);
+          }
+        });
       }
-      
+
+      // Insert AI
       if (aiLines.length > 0) {
-          const aiHeader = createParagraphNode(xmlDoc, aiHeaderTitle, true, "FF0000", "Times New Roman", "26", true);
-          if (targetNode) targetNode.parentNode?.insertBefore(aiHeader, targetNode);
-          aiLines.forEach(line => {
-              const cleanedLine = cleanPrefix(line.trim()).replace(/^-/, '').trim();
-              const newPara = createParagraphNode(xmlDoc, "- " + cleanedLine, false, "FF0000", "Times New Roman", "26");
-              if (targetNode) targetNode.parentNode?.insertBefore(newPara, targetNode);
-          });
+        const aiHeader = createParagraphNode(xmlDoc, aiHeaderTitle, true, "FF0000", font, size, false);
+        if (targetNode) {
+          targetNode.parentNode?.insertBefore(aiHeader, targetNode);
+        } else {
+          objectivesPara.parentNode?.appendChild(aiHeader);
+        }
+        aiLines.forEach(line => {
+          const cleanedLine = cleanPrefix(line.trim()).replace(/^-/, '').trim();
+          const newPara = createParagraphNode(xmlDoc, "- " + cleanedLine, false, "FF0000", font, size);
+          if (targetNode) {
+            targetNode.parentNode?.insertBefore(newPara, targetNode);
+          } else {
+            objectivesPara.parentNode?.appendChild(newPara);
+          }
+        });
       }
     }
   }
@@ -358,6 +803,10 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
               const tcs = rowNode.getElementsByTagName("w:tc");
               if (tcs.length > 0) {
                 const lastTc = tcs[tcs.length - 1];
+                const existingParas = Array.from(lastTc.getElementsByTagName("w:p"));
+                if (existingParas.length === 1 && (existingParas[0].textContent || "").trim() === "") {
+                  lastTc.removeChild(existingParas[0]);
+                }
                 lastTc.appendChild(newPara);
               }
             } else {
@@ -365,6 +814,10 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
               const tcs = rowNode.getElementsByTagName("w:tc");
               if (tcs.length > 0) {
                 const targetTc = tcs.length >= 2 ? tcs[1] : tcs[0];
+                const existingParas = Array.from(targetTc.getElementsByTagName("w:p"));
+                if (existingParas.length === 1 && (existingParas[0].textContent || "").trim() === "") {
+                  targetTc.removeChild(existingParas[0]);
+                }
                 targetTc.appendChild(newPara);
               }
             }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, CheckCircle2, Layout, Settings2, Sparkles, PenTool } from 'lucide-react';
+import { BookOpen, CheckCircle2, Layout, Settings2, Sparkles, PenTool, Youtube, PlayCircle, ExternalLink } from 'lucide-react';
 
 export function UserGuide() {
   return (
@@ -10,6 +10,69 @@ export function UserGuide() {
         <h2 className="text-2xl font-bold text-slate-800">Hướng dẫn sử dụng chi tiết</h2>
         <p className="text-slate-500">Tìm hiểu cách tận dụng tối đa các chức năng của công cụ</p>
       </div>
+
+      <Card className="border-red-200 bg-gradient-to-br from-red-50/50 to-amber-50/30 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2 text-red-700">
+            <Youtube className="w-5 h-5 text-red-600" />
+            Video hướng dẫn sử dụng trực quan
+          </CardTitle>
+          <CardDescription>Bấm vào từng video bên dưới để xem hướng dẫn thao tác từng bước chi tiết trên YouTube.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <a
+              href="https://youtu.be/hr-jLaG35hM"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex flex-col p-4 rounded-xl border border-red-200/80 bg-white hover:border-red-400 hover:shadow-md transition-all relative overflow-hidden"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                  <PlayCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-slate-900 group-hover:text-red-700 transition-colors text-sm">
+                    Video 1: Soạn giáo án & Tích hợp NLS/AI
+                  </h4>
+                  <p className="text-xs text-slate-500">Xem trên YouTube (Link: youtu.be/hr-jLaG35hM)</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                Hướng dẫn điền ngày dạy, tuần, tiết, tích hợp Năng lực số, Năng lực AI theo phụ lục và xuất file Word hoàn chỉnh.
+              </p>
+              <div className="mt-3 flex items-center text-xs font-medium text-red-600 group-hover:translate-x-1 transition-transform">
+                Mở video hướng dẫn <ExternalLink className="w-3.5 h-3.5 ml-1" />
+              </div>
+            </a>
+
+            <a
+              href="https://youtu.be/MaOHaPQF4rg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex flex-col p-4 rounded-xl border border-red-200/80 bg-white hover:border-red-400 hover:shadow-md transition-all relative overflow-hidden"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                  <PlayCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-slate-900 group-hover:text-red-700 transition-colors text-sm">
+                    Video 2: Tạo Lịch Báo Giảng tự động
+                  </h4>
+                  <p className="text-xs text-slate-500">Xem trên YouTube (Link: youtu.be/MaOHaPQF4rg)</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                Hướng dẫn cấu hình AI đọc Thời khóa biểu, tải tệp PPCT và tạo bảng Lịch Báo Giảng Excel theo tuần nhanh chóng.
+              </p>
+              <div className="mt-3 flex items-center text-xs font-medium text-red-600 group-hover:translate-x-1 transition-transform">
+                Mở video hướng dẫn <ExternalLink className="w-3.5 h-3.5 ml-1" />
+              </div>
+            </a>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-blue-100 bg-blue-50/20">
         <CardHeader>

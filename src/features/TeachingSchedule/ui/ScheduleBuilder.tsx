@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from 'sonner';
-import { CalendarRange, Loader2, Upload, Download, FileSpreadsheet, Settings2, CheckCircle2, Trash2, CheckCircle, PlusCircle } from 'lucide-react';
+import { CalendarRange, Loader2, Upload, Download, FileSpreadsheet, Settings2, CheckCircle2, Trash2, CheckCircle, PlusCircle, Youtube } from 'lucide-react';
 import localforage from 'localforage';
 
 import { AIExtractor } from '../core/aiExtractor';
@@ -203,12 +203,7 @@ export function ScheduleBuilder() {
     try {
       const extractor = new AIExtractor(apiKey, aiModel);
       
-      let lastProgress: Record<string, number> = {};
-      if (oldScheduleFile) {
-        toast.info('Đang phân tích Lịch báo giảng cũ...');
-        lastProgress = await ExcelParser.parseOldScheduleProgress(oldScheduleFile);
-      }
-
+      // 1. Collect all PPCT lessons first (needed for subject key normalization)
       let allCurriculum: PPCTLesson[] = [];
       cachedFiles.forEach(cf => {
         allCurriculum = [...allCurriculum, ...cf.lessons];
@@ -217,7 +212,21 @@ export function ScheduleBuilder() {
       if (allCurriculum.length === 0) {
         throw new Error('Không có tiết PPCT nào được trích xuất!');
       }
+
+      // Extract available subject keys (cleaned) for normalizing old schedule subjects
+      const cleanString = (s: string) => s.toLowerCase().trim().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, '');
+      const availableSubjects = Array.from(new Set(allCurriculum.map(l => cleanString(l.subject))));
+
+      // 2. Parse old schedule if provided, now with available subjects for matching
+      let lastProgress: Record<string, number> = {};
+      if (oldScheduleFile) {
+        toast.info('Đang phân tích Lịch báo giảng cũ...');
+        lastProgress = await ExcelParser.parseOldScheduleProgress(oldScheduleFile, availableSubjects);
+        console.log('[ExcelParser] Tiến độ đọc từ lịch cũ:', lastProgress);
+      }
       setProgress(p => ({ ...p, ppct: 'done', tkb: 'loading' }));
+
 
       toast.info('Đang đọc TKB bằng AI...');
       let timetable: any[] = [];
@@ -270,11 +279,26 @@ export function ScheduleBuilder() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings2 className="w-5 h-5 text-primary" />
-            Cấu hình AI (Đọc TKB)
-          </CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-primary" />
+              Cấu hình AI (Đọc TKB & Báo Giảng)
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Hỗ trợ tự động phân tích Thời khóa biểu và lập Lịch Báo Giảng theo tuần.
+            </CardDescription>
+          </div>
+          <a
+            href="https://youtu.be/MaOHaPQF4rg"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-full transition-all shadow-sm hover:scale-105 shrink-0 self-start sm:self-center"
+            title="Xem video hướng dẫn Tạo Lịch Báo Giảng trên YouTube"
+          >
+            <Youtube className="w-4 h-4 text-red-600" />
+            Video hướng dẫn Báo giảng
+          </a>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

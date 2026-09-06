@@ -399,7 +399,7 @@ function generateHeaderFooterXmls(settings: HeaderFooterSettings) {
             <w:color w:val="0000FF"/>
             <w:sz w:val="26"/><w:szCs w:val="26"/>
           </w:rPr>
-          <w:t>${settings.topLeft}</w:t>
+          <w:t xml:space="preserve">${settings.topLeft || ''}</w:t>
         </w:r>
         <w:r>
           <w:tab/>
@@ -409,7 +409,7 @@ function generateHeaderFooterXmls(settings: HeaderFooterSettings) {
             <w:color w:val="0000FF"/>
             <w:sz w:val="26"/><w:szCs w:val="26"/>
           </w:rPr>
-          <w:t>${settings.topRight}</w:t>
+          <w:t xml:space="preserve">${settings.topRight || ''}</w:t>
         </w:r>
       </w:p>
     </w:hdr>`;
@@ -434,7 +434,7 @@ function generateHeaderFooterXmls(settings: HeaderFooterSettings) {
             <w:color w:val="0000FF"/>
             <w:sz w:val="26"/><w:szCs w:val="26"/>
           </w:rPr>
-          <w:t>${settings.bottomLeft}</w:t>
+          <w:t xml:space="preserve">${settings.bottomLeft || ''}</w:t>
         </w:r>
         <w:r>
           <w:tab/>
@@ -454,12 +454,176 @@ function generateHeaderFooterXmls(settings: HeaderFooterSettings) {
             <w:color w:val="0000FF"/>
             <w:sz w:val="26"/><w:szCs w:val="26"/>
           </w:rPr>
-          <w:t>${settings.bottomRight}</w:t>
+          <w:t xml:space="preserve">${settings.bottomRight || ''}</w:t>
         </w:r>
       </w:p>
     </w:ftr>`;
 
   return { headerXml, footerXml };
+}
+
+export async function applyHeaderFooterToZip(zip: JSZip, settings: HeaderFooterSettings): Promise<void> {
+  const hasHeaderContent = !!(settings.topLeft || settings.topRight);
+  const hasFooterContent = !!(settings.bottomLeft || settings.bottomRight);
+
+  if (!hasHeaderContent && !hasFooterContent) return;
+
+  const { headerXml, footerXml } = generateHeaderFooterXmls(settings);
+
+  // 1. Manage header & footer files in zip
+  const files = Object.keys(zip.files);
+  const existingHeaders = files.filter(f => f.startsWith('word/header'));
+  const existingFooters = files.filter(f => f.startsWith('word/footer'));
+
+  if (hasHeaderContent) {
+    if (existingHeaders.length > 0) {
+      existingHeaders.forEach(fileName => zip.file(fileName, headerXml));
+    } else {
+      zip.file('word/header1.xml', headerXml);
+    }
+  }
+
+  if (hasFooterContent) {
+    if (existingFooters.length > 0) {
+      existingFooters.forEach(fileName => zip.file(fileName, footerXml));
+    } else {
+      zip.file('word/footer1.xml', footerXml);
+    }
+  }
+
+  const allHeaderFiles = Object.keys(zip.files).filter(f => f.startsWith('word/header'));
+  const allFooterFiles = Object.keys(zip.files).filter(f => f.startsWith('word/footer'));
+
+  // 2. Ensure [Content_Types].xml has overrides
+  const contentTypesPath = '[Content_Types].xml';
+  let contentTypesXml = await zip.file(contentTypesPath)?.async('string');
+  if (contentTypesXml) {
+    let ctModified = false;
+    for (const hf of allHeaderFiles) {
+      const partName = '/' + hf;
+      if (!contentTypesXml.includes(partName)) {
+        const override = `<Override PartName="${partName}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`;
+        contentTypesXml = contentTypesXml.replace('</Types>', `${override}</Types>`);
+        ctModified = true;
+      }
+    }
+    for (const ff of allFooterFiles) {
+      const partName = '/' + ff;
+      if (!contentTypesXml.includes(partName)) {
+        const override = `<Override PartName="${partName}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`;
+        contentTypesXml = contentTypesXml.replace('</Types>', `${override}</Types>`);
+        ctModified = true;
+      }
+    }
+    if (ctModified) {
+      zip.file(contentTypesPath, contentTypesXml);
+    }
+  }
+
+  // 3. Ensure word/_rels/document.xml.rels has relationships
+  const relsPath = 'word/_rels/document.xml.rels';
+  let relsXml = await zip.file(relsPath)?.async('string');
+  let headerRId = 'rIdHeaderCustom';
+  let footerRId = 'rIdFooterCustom';
+
+  if (relsXml) {
+    let relsModified = false;
+
+    if (hasHeaderContent) {
+      const hdrRelMatch = relsXml.match(/<Relationship[^>]+Type="[^"]*relationships\/header"[^>]*>/i);
+      if (hdrRelMatch) {
+        const idMatch = hdrRelMatch[0].match(/Id="([^"]+)"/i);
+        if (idMatch) headerRId = idMatch[1];
+      } else {
+        const primaryHeader = allHeaderFiles[0] ? allHeaderFiles[0].replace('word/', '') : 'header1.xml';
+        const relNode = `<Relationship Id="${headerRId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="${primaryHeader}"/>`;
+        relsXml = relsXml.replace('</Relationships>', `${relNode}</Relationships>`);
+        relsModified = true;
+      }
+    }
+
+    if (hasFooterContent) {
+      const ftrRelMatch = relsXml.match(/<Relationship[^>]+Type="[^"]*relationships\/footer"[^>]*>/i);
+      if (ftrRelMatch) {
+        const idMatch = ftrRelMatch[0].match(/Id="([^"]+)"/i);
+        if (idMatch) footerRId = idMatch[1];
+      } else {
+        const primaryFooter = allFooterFiles[0] ? allFooterFiles[0].replace('word/', '') : 'footer1.xml';
+        const relNode = `<Relationship Id="${footerRId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="${primaryFooter}"/>`;
+        relsXml = relsXml.replace('</Relationships>', `${relNode}</Relationships>`);
+        relsModified = true;
+      }
+    }
+
+    if (relsModified) {
+      zip.file(relsPath, relsXml);
+    }
+  }
+
+  // 4. Update word/document.xml to reference headers and footers in all w:sectPr
+  const documentXmlPath = 'word/document.xml';
+  let docXml = await zip.file(documentXmlPath)?.async('string');
+  if (docXml) {
+    if (!docXml.includes('xmlns:r=')) {
+      docXml = docXml.replace('<w:document ', '<w:document xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
+    }
+
+    if (docXml.includes('<w:sectPr')) {
+      docXml = docXml.replace(/<w:sectPr([^>]*)>([\s\S]*?)<\/w:sectPr>/g, (_match, attrs, inner) => {
+        let newInner = inner;
+
+        if (hasHeaderContent) {
+          if (newInner.includes('headerReference')) {
+            newInner = newInner.replace(/<w:headerReference[^>]*w:type="default"[^>]*\/>/gi, 
+              `<w:headerReference w:type="default" r:id="${headerRId}"/>`);
+            newInner = newInner.replace(/<w:headerReference[^>]*w:type="first"[^>]*\/>/gi, 
+              `<w:headerReference w:type="first" r:id="${headerRId}"/>`);
+          } else {
+            newInner = `<w:headerReference w:type="default" r:id="${headerRId}"/>` + newInner;
+          }
+
+          if (newInner.includes('<w:titlePg') && !newInner.includes('w:type="first"')) {
+            newInner = `<w:headerReference w:type="first" r:id="${headerRId}"/>` + newInner;
+          }
+        }
+
+        if (hasFooterContent) {
+          if (newInner.includes('footerReference')) {
+            newInner = newInner.replace(/<w:footerReference[^>]*w:type="default"[^>]*\/>/gi, 
+              `<w:footerReference w:type="default" r:id="${footerRId}"/>`);
+            newInner = newInner.replace(/<w:footerReference[^>]*w:type="first"[^>]*\/>/gi, 
+              `<w:footerReference w:type="first" r:id="${footerRId}"/>`);
+          } else {
+            const selfCloseHdrEnd = newInner.lastIndexOf('w:headerReference');
+            if (selfCloseHdrEnd !== -1) {
+              const tagClose = newInner.indexOf('/>', selfCloseHdrEnd);
+              if (tagClose !== -1) {
+                newInner = newInner.substring(0, tagClose + 2) + `<w:footerReference w:type="default" r:id="${footerRId}"/>` + newInner.substring(tagClose + 2);
+              } else {
+                newInner = `<w:footerReference w:type="default" r:id="${footerRId}"/>` + newInner;
+              }
+            } else {
+              newInner = `<w:footerReference w:type="default" r:id="${footerRId}"/>` + newInner;
+            }
+          }
+
+          if (newInner.includes('<w:titlePg') && !newInner.includes('w:type="first"')) {
+            newInner = `<w:footerReference w:type="first" r:id="${footerRId}"/>` + newInner;
+          }
+        }
+
+        return `<w:sectPr${attrs}>${newInner}</w:sectPr>`;
+      });
+    } else {
+      let refs = '';
+      if (hasHeaderContent) refs += `<w:headerReference w:type="default" r:id="${headerRId}"/>`;
+      if (hasFooterContent) refs += `<w:footerReference w:type="default" r:id="${footerRId}"/>`;
+      const sectPr = `<w:sectPr>${refs}</w:sectPr>`;
+      docXml = docXml.replace('</w:body>', `${sectPr}</w:body>`);
+    }
+
+    zip.file(documentXmlPath, docXml);
+  }
 }
 
 /**
@@ -807,31 +971,7 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
         }
       }
     }
-  // Handle Header/Footer if settings provided (and not completely empty)
-  if (options.headerFooter && 
-     (options.headerFooter.topLeft || options.headerFooter.topRight || 
-      options.headerFooter.bottomLeft || options.headerFooter.bottomRight)) {
-    const { headerXml, footerXml } = generateHeaderFooterXmls(options.headerFooter);
-    
-    // Find all existing header and footer files and overwrite them
-    const files = Object.keys(zip.files);
-    let headerFound = false;
-    let footerFound = false;
 
-    files.forEach(fileName => {
-      if (fileName.startsWith('word/header')) {
-        zip.file(fileName, headerXml);
-        headerFound = true;
-      }
-      if (fileName.startsWith('word/footer')) {
-        zip.file(fileName, footerXml);
-        footerFound = true;
-      }
-    });
-
-    if (!headerFound) zip.file('word/header1.xml', headerXml);
-    if (!footerFound) zip.file('word/footer1.xml', footerXml);
-  }
 
   // Handle NLS Integration if options provided
   if (options.nlsOptions) {
@@ -965,6 +1105,13 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
 
   zip.file(documentXmlPath, newDocumentXml);
   
+  // Handle Header/Footer (applies to zip, [Content_Types].xml, rels, and document.xml)
+  if (options.headerFooter && 
+     (options.headerFooter.topLeft || options.headerFooter.topRight || 
+      options.headerFooter.bottomLeft || options.headerFooter.bottomRight)) {
+    await applyHeaderFooterToZip(zip, options.headerFooter);
+  }
+
   const output = await zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
