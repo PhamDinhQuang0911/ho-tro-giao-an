@@ -682,21 +682,23 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
 
   for (const [className, classItems] of Object.entries(grouped)) {
     let startPPCT = classOffsets[className] || 1;
+    const n = classItems.length;
+    const startIndex = (startPPCT - 1) % n;
     
     const sessions: any[] = [];
-    let currentWeekOffset = 0;
-    while (sessions.length < lessonCount) {
-       for (const item of classItems) {
-          if (sessions.length >= lessonCount) break;
-          const daysToAdd = item.dayOfWeek === 0 ? 6 : item.dayOfWeek - 1;
-          const itemDate = addDays(weekStart, daysToAdd + currentWeekOffset * 7);
-          sessions.push({
-             ...item,
-             date: itemDate,
-             weekIndex: currentWeekOffset
-          });
-       }
-       currentWeekOffset++;
+    for (let i = 0; i < lessonCount; i++) {
+       const currentIndex = (startIndex + i) % n;
+       const wrapCount = Math.floor((startIndex + i) / n);
+       
+       const item = classItems[currentIndex];
+       const daysToAdd = item.dayOfWeek === 0 ? 6 : item.dayOfWeek - 1;
+       const itemDate = addDays(weekStart, daysToAdd + wrapCount * 7);
+       
+       sessions.push({
+          ...item,
+          date: itemDate,
+          weekIndex: wrapCount
+       });
     }
 
     sessions.forEach((session, index) => {
