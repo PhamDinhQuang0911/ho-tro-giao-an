@@ -681,7 +681,7 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
   const baseWeek = (parseInt(weekNumber) || 1) + (weekOffset - 1);
 
   for (const [className, classItems] of Object.entries(grouped)) {
-    let startPPCT = classOffsets[className] || 1;
+    let startPPCT = classOffsets[className] || parseInt(options.periodNumber) || 1;
     const n = classItems.length;
     const startIndex = (startPPCT - 1) % n;
     
