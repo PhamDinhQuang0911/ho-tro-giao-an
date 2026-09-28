@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SignatureModal } from './SignatureModal';
-import { PenTool } from 'lucide-react';
+import { SubjectApproversModal } from './SubjectApproversModal';
+import { PenTool, Trash2, Plus, Calendar as CalendarIcon, Settings2, Layout, Pencil, Check, X, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trash2, Plus, Calendar as CalendarIcon, Settings2, Layout, Pencil, Check, X } from 'lucide-react';
 import { ScheduleItem, HeaderFooterSettings } from '@/lib/word-utils';
 import { ReflectionSettings } from '@/types';
 import { toast } from 'sonner';
@@ -62,6 +62,7 @@ export function ScheduleSettings() {
   const [newPeriod, setNewPeriod] = useState('');
   
   const [showSigModal, setShowSigModal] = useState(false);
+  const [showApproversModal, setShowApproversModal] = useState(false);
   const [savedSignatureUrl, setSavedSignatureUrl] = useState('');
   useEffect(() => {
     const savedSig = localStorage.getItem('lesson-plan-signature-image');
@@ -584,11 +585,36 @@ export function ScheduleSettings() {
               </div>
 
               <div className="space-y-4 p-4 border rounded-lg bg-slate-50/50">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <Settings2 className="w-4 h-4" /> Thông tin Ký duyệt
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Settings2 className="w-4 h-4" /> Thông tin Ký duyệt
+                  </h3>
+                </div>
+
+                {/* Phân công duyệt theo từng môn */}
+                <div className="p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div>
+                    <p className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-indigo-600" />
+                      Phân công Ký duyệt (Tổ trưởng / Tổ phó) theo Môn
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Cài đặt môn nào do Tổ phó duyệt, môn nào do Tổ trưởng duyệt & họ tên tương ứng
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowApproversModal(true)}
+                    className="h-8 text-xs bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold shadow-2xs shrink-0 cursor-pointer"
+                  >
+                    ⚙️ Phân công theo môn
+                  </Button>
+                </div>
+
                 <div className="space-y-2">
-                  <Label>Người ký duyệt</Label>
+                  <Label>Người ký duyệt (Mặc định)</Label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
@@ -668,6 +694,20 @@ export function ScheduleSettings() {
           setSavedSignatureUrl(img);
           localStorage.setItem('lesson-plan-signature-image', img);
           setReflectionSettings({...reflectionSettings, insertSignature: true});
+        }}
+      />
+      <SubjectApproversModal 
+        open={showApproversModal} 
+        onOpenChange={setShowApproversModal} 
+        subjects={SUBJECTS} 
+        onSave={(map) => {
+          const defaultHead = localStorage.getItem('lesson-plan-default-head-name');
+          const defaultDeputy = localStorage.getItem('lesson-plan-default-deputy-name');
+          if (reflectionSettings.approverTitle === 'TỔ TRƯỞNG KÝ DUYỆT' && defaultHead) {
+            setReflectionSettings(prev => ({ ...prev, approverName: defaultHead }));
+          } else if (reflectionSettings.approverTitle !== 'TỔ TRƯỞNG KÝ DUYỆT' && defaultDeputy) {
+            setReflectionSettings(prev => ({ ...prev, approverName: defaultDeputy }));
+          }
         }}
       />
     </div>

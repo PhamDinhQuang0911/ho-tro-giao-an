@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool, Coffee, Youtube } from 'lucide-react';
+import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool, Coffee, Youtube, UserCheck } from 'lucide-react';
 import { SignatureModal } from './SignatureModal';
 import { AppendixManager } from './AppendixManager';
 import { CoffeeModal } from './CoffeeModal';
+import { SubjectApproversModal } from './SubjectApproversModal';
 import { processWordFile, signWordDocument, ScheduleItem, ProcessingOptions, HeaderFooterSettings } from '@/lib/word-utils';
 import { toast } from 'sonner';
 import { format, addDays, startOfWeek } from 'date-fns';
@@ -15,7 +16,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { vi } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { SubjectType, GradeType, ReflectionSettings } from '@/types';
+import { SubjectType, GradeType, ReflectionSettings, SubjectApproversMap } from '@/types';
 import { Switch } from '@/components/ui/switch';
 
 const SUBJECTS: SubjectType[] = [
@@ -99,6 +100,8 @@ export function LessonPlanProcessor() {
   const [showSigModal, setShowSigModal] = useState(false);
   const [savedSignatureUrl, setSavedSignatureUrl] = useState('');
   const [showCoffeeModal, setShowCoffeeModal] = useState(false);
+  const [showApproverModal, setShowApproverModal] = useState(false);
+  const [subjectApprovers, setSubjectApprovers] = useState<SubjectApproversMap>({});
   
   const updateReflection = (key: string, value: any) => {
     setReflectionSettings(prev => {
@@ -136,6 +139,15 @@ export function LessonPlanProcessor() {
       setSavedSignatureUrl(savedSig);
     }
 
+    const savedApprovers = localStorage.getItem('lesson-plan-subject-approvers');
+    if (savedApprovers) {
+      try {
+        setSubjectApprovers(JSON.parse(savedApprovers));
+      } catch (e) {
+        console.error('Failed to parse subject approvers', e);
+      }
+    }
+
     const savedReflection = localStorage.getItem('lesson-plan-reflection-settings');
     if (savedReflection) {
       try {
@@ -158,6 +170,41 @@ export function LessonPlanProcessor() {
     const savedModel = localStorage.getItem('USER_GEMINI_AI_MODEL');
     if (savedModel) setAiModel(savedModel);
   }, []);
+
+  // Auto sync approver title and name when selectedSubject or subjectApprovers change
+  useEffect(() => {
+    if (!selectedSubject) return;
+    const normSub = selectedSubject.trim().toLowerCase();
+
+    let map = subjectApprovers;
+    if (Object.keys(map).length === 0) {
+      const saved = localStorage.getItem('lesson-plan-subject-approvers');
+      if (saved) {
+        try { map = JSON.parse(saved); } catch (e) {}
+      }
+    }
+
+    const matchedKey = Object.keys(map).find(k => {
+      const normK = k.trim().toLowerCase();
+      return normK === normSub || normSub.startsWith(normK) || normK.startsWith(normSub);
+    });
+
+    if (matchedKey && map[matchedKey]) {
+      const cfg = map[matchedKey];
+      setReflectionSettings(prev => {
+        if (prev.approverTitle === cfg.approverTitle && prev.approverName === cfg.approverName) {
+          return prev;
+        }
+        const next = {
+          ...prev,
+          approverTitle: cfg.approverTitle,
+          approverName: cfg.approverName || prev.approverName
+        };
+        localStorage.setItem('lesson-plan-reflection-settings', JSON.stringify(next));
+        return next;
+      });
+    }
+  }, [selectedSubject, subjectApprovers]);
 
   const subjects = useMemo(() => {
     const fromSchedule = Array.from(new Set(schedule.map(s => s.subject)));
@@ -944,6 +991,36 @@ export function LessonPlanProcessor() {
                   </div>
                 </div>
 
+                {/* Cài đặt người ký theo môn học */}
+                <div className="p-2.5 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/90 border border-indigo-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-indigo-900 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                      Ký duyệt theo môn học
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowApproverModal(true)}
+                      className="h-6 text-[10px] px-2 text-indigo-700 hover:text-indigo-900 hover:bg-indigo-100 font-semibold cursor-pointer"
+                    >
+                      ⚙️ Cài đặt theo môn
+                    </Button>
+                  </div>
+                  {selectedSubject ? (
+                    <div className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-indigo-100 shadow-2xs">
+                      <span className="text-slate-600 font-medium">Môn <strong>{selectedSubject}</strong>:</span>
+                      <span className="font-bold text-indigo-700 flex items-center gap-1">
+                        {reflectionSettings.approverTitle === 'TỔ TRƯỞNG KÝ DUYỆT' ? '👑 Tổ trưởng' : '🏅 Tổ phó'}
+                        {reflectionSettings.approverName ? ` - ${reflectionSettings.approverName}` : ' (Chưa có tên)'}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-500 italic">Chọn môn học ở cột bên trái để tự động nhận Tổ trưởng/Tổ phó</p>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="space-y-1">
                     <Label className="text-[11px] font-semibold text-slate-700">Chức vụ duyệt</Label>
@@ -1078,6 +1155,27 @@ export function LessonPlanProcessor() {
           setSavedSignatureUrl(img);
           localStorage.setItem('lesson-plan-signature-image', img);
           updateReflection('insertSignature', true);
+        }}
+      />
+      <SubjectApproversModal 
+        open={showApproverModal}
+        onOpenChange={setShowApproverModal}
+        subjects={subjects}
+        currentSubject={selectedSubject}
+        onSave={(map) => {
+          setSubjectApprovers(map);
+          if (selectedSubject) {
+            const normSub = selectedSubject.trim().toLowerCase();
+            const matchedKey = Object.keys(map).find(k => {
+              const normK = k.trim().toLowerCase();
+              return normK === normSub || normSub.startsWith(normK) || normK.startsWith(normSub);
+            });
+            if (matchedKey && map[matchedKey]) {
+              const conf = map[matchedKey];
+              updateReflection('approverTitle', conf.approverTitle);
+              updateReflection('approverName', conf.approverName);
+            }
+          }
         }}
       />
       <CoffeeModal 

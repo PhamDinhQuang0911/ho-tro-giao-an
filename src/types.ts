@@ -11,6 +11,13 @@ export type GradeType =
   | 'Lớp 8' | 'Lớp 9' 
   | 'Lớp 10' | 'Lớp 11' | 'Lớp 12';
 
+export interface SubjectApproverConfig {
+  approverTitle: 'TỔ TRƯỞNG KÝ DUYỆT' | 'TỔ PHÓ KÝ DUYỆT' | string;
+  approverName: string;
+}
+
+export type SubjectApproversMap = Record<string, SubjectApproverConfig>;
+
 export interface ReflectionSettings {
   enabled: boolean;
   title: string;
@@ -25,6 +32,7 @@ export interface ReflectionSettings {
   teacherName?: string;       // e.g. "Nguyễn Thị A"
   insertSignature?: boolean;
   signatureImage?: string;
+  subjectApprovers?: SubjectApproversMap;
 }
 
 export interface ProcessingConfig {
