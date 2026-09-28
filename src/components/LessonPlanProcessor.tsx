@@ -51,6 +51,21 @@ const DAYS_OF_WEEK_MAP = [
   { value: 0, label: 'Chủ Nhật' },
 ];
 
+const DEFAULT_REFLECTION: ReflectionSettings = {
+  enabled: true,
+  title: 'Rút kinh nghiệm',
+  contentLines: 3,
+  approverTitle: 'TỔ TRƯỞNG KÝ DUYỆT',
+  approverName: '',
+  year: '2026',
+  autoSigningDate: true,
+  showReflection: true,
+  showSigningDate: true,
+  location: 'Đường Hào',
+  teacherName: 'Phạm Đình Quang',
+  insertSignature: false,
+};
+
 import { extractTextFromDocx } from '@/lib/nls-utils';
 
 export function LessonPlanProcessor() {
@@ -69,7 +84,7 @@ export function LessonPlanProcessor() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [hfSettings, setHfSettings] = useState<HeaderFooterSettings | null>(null);
-  const [reflectionSettings, setReflectionSettings] = useState<ReflectionSettings | null>(null);
+  const [reflectionSettings, setReflectionSettings] = useState<ReflectionSettings>(DEFAULT_REFLECTION);
 
   // NLS State
   const [enableNLS, setEnableNLS] = useState(false);
@@ -87,7 +102,7 @@ export function LessonPlanProcessor() {
   
   const updateReflection = (key: string, value: any) => {
     setReflectionSettings(prev => {
-      const next = { ...(prev || {}), [key]: value, enabled: true };
+      const next = { ...prev, [key]: value, enabled: true };
       localStorage.setItem('lesson-plan-reflection-settings', JSON.stringify(next));
       return next;
     });
@@ -116,16 +131,22 @@ export function LessonPlanProcessor() {
       }
     }
 
+    const savedSig = localStorage.getItem('lesson-plan-signature-image');
+    if (savedSig) {
+      setSavedSignatureUrl(savedSig);
+    }
+
     const savedReflection = localStorage.getItem('lesson-plan-reflection-settings');
     if (savedReflection) {
       try {
         const parsed = JSON.parse(savedReflection);
         // Merge with defaults so new fields are always present
-        setReflectionSettings({
-          showReflection: true,
-          showSigningDate: true,
+        setReflectionSettings(prev => ({
+          ...DEFAULT_REFLECTION,
+          ...prev,
           ...parsed,
-        });
+          enabled: true,
+        }));
       } catch (e) {
         console.error('Failed to parse reflection settings', e);
       }
@@ -311,8 +332,9 @@ export function LessonPlanProcessor() {
         classOffsets: classOffsets,
         mergePeriods: mergePeriods,
         headerFooter: hfSettings || undefined,
-        reflection: enableReflection && reflectionSettings?.enabled ? {
+        reflection: enableReflection ? {
           ...reflectionSettings,
+          enabled: true,
           signatureImage: (reflectionSettings?.insertSignature && savedSignatureUrl) ? savedSignatureUrl : undefined
         } : undefined,
         nlsOptions: enableNLS ? {
@@ -399,20 +421,24 @@ export function LessonPlanProcessor() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lesson-count">Số tiết dạy</Label>
-                  <select
-                    id="lesson-count"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={lessonCount}
-                    onChange={(e) => setLessonCount(e.target.value)}
-                  >
-                    <option value="1">1 tiết</option>
-                    <option value="2">2 tiết</option>
-                    <option value="3">3 tiết</option>
-                    <option value="4">4 tiết</option>
-                    <option value="5">5 tiết</option>
-                    <option value="6">6 tiết</option>
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="lesson-count">Số tiết dạy</Label>
+                    <span className="text-[10px] text-slate-400 font-normal">(Nhập số tùy ý)</span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="lesson-count"
+                      type="number"
+                      min="1"
+                      className="flex h-10 w-full pr-12 text-sm font-medium"
+                      placeholder="VD: 1, 2, 6, 8..."
+                      value={lessonCount}
+                      onChange={(e) => setLessonCount(e.target.value)}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none select-none">
+                      tiết
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="week-offset">Khoảng cách tuần dạy</Label>
@@ -852,10 +878,31 @@ export function LessonPlanProcessor() {
                       />
                     </div>
                   </div>
-                  {reflectionSettings?.insertSignature && savedSignatureUrl && (
-                     <div className="flex justify-center mt-2 border border-dashed border-amber-200 p-2 rounded bg-white">
+                  {reflectionSettings?.insertSignature && (
+                    savedSignatureUrl ? (
+                      <div className="flex items-center justify-between mt-2 border border-dashed border-amber-200 p-2 rounded bg-white">
                         <img src={savedSignatureUrl} className="h-12 object-contain" alt="Chữ ký" />
-                     </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 text-[10px] text-red-500 hover:text-red-700"
+                          onClick={() => {
+                            setSavedSignatureUrl('');
+                            localStorage.removeItem('lesson-plan-signature-image');
+                          }}
+                        >
+                          Xóa chữ ký
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-200 mt-2 flex items-center justify-between">
+                        <span>Chưa có ảnh chữ ký mẫu.</span>
+                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 ml-2" onClick={() => setShowSigModal(true)}>
+                          <PenTool className="w-3 h-3 mr-1" /> Tải lên / Tạo ngay
+                        </Button>
+                      </div>
+                    )
                   )}
                 </CardContent>
               )}

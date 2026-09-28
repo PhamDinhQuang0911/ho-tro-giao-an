@@ -228,15 +228,37 @@ export function ScheduleBuilder() {
       setProgress(p => ({ ...p, ppct: 'done', tkb: 'loading' }));
 
 
-      toast.info('Đang đọc TKB bằng AI...');
+      const generateHash = (f: File, t: string, r: string, m: string) => `${f.name}_${f.size}_${t}_${r}_${m}`;
+
+      toast.info('Đang kiểm tra dữ liệu TKB...');
       let timetable: any[] = [];
+      
       if (tkbSangFile) {
-        const sang = await extractor.extractTimetableFromImage(tkbSangFile, teacherName, 'SÁNG', tkbRules);
-        timetable = [...timetable, ...sang];
+        const hash = generateHash(tkbSangFile, teacherName, tkbRules, aiModel);
+        const cache: any = await localforage.getItem('tkb_sang_cache');
+        if (cache && cache.hash === hash) {
+          toast.success('Dùng kết quả TKB Sáng đã lưu (Không cần AI)');
+          timetable = [...timetable, ...cache.data];
+        } else {
+          toast.info('Đang đọc TKB Sáng bằng AI...');
+          const sang = await extractor.extractTimetableFromImage(tkbSangFile, teacherName, 'SÁNG', tkbRules);
+          await localforage.setItem('tkb_sang_cache', { hash, data: sang });
+          timetable = [...timetable, ...sang];
+        }
       }
+      
       if (tkbChieuFile) {
-        const chieu = await extractor.extractTimetableFromImage(tkbChieuFile, teacherName, 'CHIỀU', tkbRules);
-        timetable = [...timetable, ...chieu];
+        const hash = generateHash(tkbChieuFile, teacherName, tkbRules, aiModel);
+        const cache: any = await localforage.getItem('tkb_chieu_cache');
+        if (cache && cache.hash === hash) {
+          toast.success('Dùng kết quả TKB Chiều đã lưu (Không cần AI)');
+          timetable = [...timetable, ...cache.data];
+        } else {
+          toast.info('Đang đọc TKB Chiều bằng AI...');
+          const chieu = await extractor.extractTimetableFromImage(tkbChieuFile, teacherName, 'CHIỀU', tkbRules);
+          await localforage.setItem('tkb_chieu_cache', { hash, data: chieu });
+          timetable = [...timetable, ...chieu];
+        }
       }
       setProgress(p => ({ ...p, tkb: 'done', schedule: 'loading' }));
 

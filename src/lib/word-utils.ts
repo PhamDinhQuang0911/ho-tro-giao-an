@@ -250,55 +250,92 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
   const dateLine = showSigningDate ? `${loc}, ${signingDateStr}` : '';
 
 
-    let signatureDrawing = `
-      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-      <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-    `;
+  let cx = 1500000; // ~4.1 cm default width
+  let cy = 750000;  // ~2.0 cm default height
+  if (settings.signatureImage) {
+    try {
+      const clean = settings.signatureImage.replace(/^data:image\/\w+;base64,/, '');
+      const binary = atob(clean.slice(0, 50));
+      if (binary.length >= 24) {
+        const width = ((binary.charCodeAt(16) << 24) |
+                      (binary.charCodeAt(17) << 16) |
+                      (binary.charCodeAt(18) << 8) |
+                      binary.charCodeAt(19)) >>> 0;
+        const height = ((binary.charCodeAt(20) << 24) |
+                       (binary.charCodeAt(21) << 16) |
+                       (binary.charCodeAt(22) << 8) |
+                       binary.charCodeAt(23)) >>> 0;
+        if (width > 0 && height > 0) {
+          const ratio = width / height;
+          const maxW = 1500000;
+          const maxH = 750000;
+          if (ratio >= maxW / maxH) {
+            cx = maxW;
+            cy = Math.round(maxW / ratio);
+          } else {
+            cy = maxH;
+            cx = Math.round(maxH * ratio);
+          }
+        }
+      }
+    } catch (e) {}
+  }
 
-    if (settings.signatureImage) {
-      signatureDrawing = `
-        <w:p>
-          <w:pPr><w:jc w:val="center"/></w:pPr>
-          <w:r>
-            <w:drawing>
-              <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
-                <wp:extent cx="1400000" cy="700000"/>
-                <wp:effectExtent l="0" t="0" r="0" b="0"/>
-                <wp:docPr id="999" name="Signature"/>
-                <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
-                <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-                  <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                    <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                      <pic:nvPicPr>
-                        <pic:cNvPr id="0" name="sig.png"/>
-                        <pic:cNvPicPr/>
-                      </pic:nvPicPr>
-                      <pic:blipFill>
-                        <a:blip r:embed="rIdSig" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
-                        <a:stretch><a:fillRect/></a:stretch>
-                      </pic:blipFill>
-                      <pic:spPr>
-                        <a:xfrm><a:off x="0" y="0"/><a:ext cx="1400000" cy="700000"/></a:xfrm>
-                        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-                      </pic:spPr>
-                    </pic:pic>
-                  </a:graphicData>
-                </a:graphic>
-              </wp:inline>
-            </w:drawing>
-          </w:r>
-        </w:p>
-      `;
-    }
+  let signatureDrawing = `
+    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+  `;
+
+  if (settings.signatureImage) {
+    signatureDrawing = `
+      <w:p>
+        <w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="60"/></w:pPr>
+        <w:r>
+          <w:drawing>
+            <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+              <wp:extent cx="${cx}" cy="${cy}"/>
+              <wp:effectExtent l="0" t="0" r="0" b="0"/>
+              <wp:docPr id="99999" name="Signature"/>
+              <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
+              <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                    <pic:nvPicPr>
+                      <pic:cNvPr id="99999" name="signature.png"/>
+                      <pic:cNvPicPr/>
+                    </pic:nvPicPr>
+                    <pic:blipFill>
+                      <a:blip r:embed="rIdSig" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+                      <a:stretch><a:fillRect/></a:stretch>
+                    </pic:blipFill>
+                    <pic:spPr>
+                      <a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+                      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                    </pic:spPr>
+                  </pic:pic>
+                </a:graphicData>
+              </a:graphic>
+            </wp:inline>
+          </w:drawing>
+        </w:r>
+      </w:p>
+    `;
+  }
+
+  const dateSpacer = dateLine ? `
+    <w:p>
+      <w:pPr><w:jc w:val="center"/></w:pPr>
+      <w:r><w:rPr><w:i/>${fontXml}${smallSizeXml}</w:rPr><w:t></w:t></w:r>
+    </w:p>
+  ` : '';
 
   const signatureTableXml = `
     <w:p><w:pPr><w:jc w:val="both"/></w:pPr></w:p>
     <w:tbl>
       <w:tblPr>
-        <w:tblW w:w="0" w:type="auto"/>
+        <w:tblW w:w="5000" w:type="pct"/>
+        <w:jc w:val="center"/>
         <w:tblBorders>
           <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
           <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
@@ -310,19 +347,23 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
         <w:tblLayout w:type="fixed"/>
       </w:tblPr>
       <w:tblGrid>
-        <w:gridCol w:w="4500"/>
-        <w:gridCol w:w="4500"/>
+        <w:gridCol w:w="4800"/>
+        <w:gridCol w:w="4800"/>
       </w:tblGrid>
+
+      <!-- HÀNG 1: TIÊU ĐỀ KÝ DUYỆT -->
       <w:tr>
+        <!-- Cột trái: Phê duyệt -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="top"/></w:tcPr>
+          ${dateLine ? `
           <w:p>
             <w:pPr><w:jc w:val="center"/></w:pPr>
             <w:r>
               <w:rPr><w:i/>${fontXml}${smallSizeXml}</w:rPr>
               <w:t>${dateLine}</w:t>
             </w:r>
-          </w:p>
+          </w:p>` : ''}
           <w:p>
             <w:pPr><w:jc w:val="center"/></w:pPr>
             <w:r>
@@ -337,9 +378,51 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
               <w:t>${titleLine}</w:t>
             </w:r>
           </w:p>
+        </w:tc>
+
+        <!-- Cột phải: Giáo viên thực hiện -->
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="top"/></w:tcPr>
+          ${dateSpacer}
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t>GIÁO VIÊN THỰC HIỆN</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r>
+              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:t></w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+
+      <!-- HÀNG 2: CHỮ KÝ (ẢNH HOẶC KHOẢNG TRỐNG KÝ TAY) -->
+      <w:tr>
+        <!-- Cột trái: Khoảng trống ký tay -->
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
           <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
           <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+        </w:tc>
+
+        <!-- Cột phải: Chữ ký giáo viên -->
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr>
+          ${signatureDrawing}
+        </w:tc>
+      </w:tr>
+
+      <!-- HÀNG 3: HỌ VÀ TÊN (CĂN BẰNG NHAU 100%) -->
+      <w:tr>
+        <!-- Cột trái: Tên tổ trưởng/tổ phó -->
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="bottom"/></w:tcPr>
           <w:p>
             <w:pPr><w:jc w:val="center"/></w:pPr>
             <w:r>
@@ -348,20 +431,10 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
             </w:r>
           </w:p>
         </w:tc>
+
+        <!-- Cột phải: Tên giáo viên -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="4500" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>
-          <w:p>
-            <w:pPr><w:jc w:val="center"/></w:pPr>
-            <w:r>
-              <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
-              <w:t>GIÁO VIÊN THỰC HIỆN</w:t>
-            </w:r>
-          </w:p>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="bottom"/></w:tcPr>
           <w:p>
             <w:pPr><w:jc w:val="center"/></w:pPr>
             <w:r>
@@ -955,7 +1028,7 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
       
       const contentTypesPath = '[Content_Types].xml';
       let contentTypesXml = await zip.file(contentTypesPath)?.async('string');
-      if (contentTypesXml && !contentTypesXml.includes('Extension="png"')) {
+      if (contentTypesXml && !/Extension="png"/i.test(contentTypesXml)) {
         const pngType = '<Default Extension="png" ContentType="image/png"/>';
         contentTypesXml = contentTypesXml.replace('</Types>', pngType + '</Types>');
         zip.file(contentTypesPath, contentTypesXml);
@@ -964,11 +1037,17 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
       const relsPath = 'word/_rels/document.xml.rels';
       let relsXml = await zip.file(relsPath)?.async('string');
       if (relsXml) {
-        if (!relsXml.includes('rIdSig')) {
+        if (!relsXml.includes('Id="rIdSig"')) {
           const relNode = '<Relationship Id="rIdSig" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/signature.png"/>';
           relsXml = relsXml.replace('</Relationships>', relNode + '</Relationships>');
           zip.file(relsPath, relsXml);
         }
+      } else {
+        const newRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSig" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/signature.png"/>
+</Relationships>`;
+        zip.file(relsPath, newRels);
       }
     }
 
@@ -1096,12 +1175,37 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
     }
   }
 
-  const newDocumentXml = 
+  // Extract trailing sectPr from cleanBodyContent so reflectionXml is placed BEFORE sectPr
+  let sectPrXml = '';
+  const sectPrMatch = cleanBodyContent.match(/<w:sectPr[^>]*>[\s\S]*?<\/w:sectPr>\s*$/);
+  if (sectPrMatch) {
+    sectPrXml = sectPrMatch[0];
+    cleanBodyContent = cleanBodyContent.slice(0, cleanBodyContent.length - sectPrMatch[0].length);
+  }
+
+  let newDocumentXml = 
     currentDocXml.slice(0, bodyStartIndex + bodyStartTag.length) + 
     headerXml + 
     cleanBodyContent + 
-    reflectionXml +
+    reflectionXml + 
+    sectPrXml +
     currentDocXml.slice(bodyEndIndex);
+
+  // If signature image is embedded, ensure namespaces exist on w:document
+  if (options.reflection?.signatureImage) {
+    const namespacesToAdd = [
+      { prefix: 'xmlns:r', uri: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships' },
+      { prefix: 'xmlns:wp', uri: 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing' },
+      { prefix: 'xmlns:a', uri: 'http://schemas.openxmlformats.org/drawingml/2006/main' },
+      { prefix: 'xmlns:pic', uri: 'http://schemas.openxmlformats.org/drawingml/2006/picture' },
+    ];
+
+    for (const ns of namespacesToAdd) {
+      if (!newDocumentXml.includes(`${ns.prefix}=`)) {
+        newDocumentXml = newDocumentXml.replace('<w:document ', `<w:document ${ns.prefix}="${ns.uri}" `);
+      }
+    }
+  }
 
   zip.file(documentXmlPath, newDocumentXml);
   
