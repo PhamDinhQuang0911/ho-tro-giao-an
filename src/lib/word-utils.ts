@@ -1223,3 +1223,224 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
 
   return output;
 }
+
+export function calculateSignatureDimensions(signatureImage?: string, maxW = 1500000, maxH = 750000): { cx: number; cy: number } {
+  let cx = maxW;
+  let cy = maxH;
+  if (!signatureImage) return { cx, cy };
+  try {
+    const clean = signatureImage.replace(/^data:image\/\w+;base64,/, '');
+    const binary = atob(clean.slice(0, 50));
+    if (binary.length >= 24) {
+      const width = ((binary.charCodeAt(16) << 24) |
+                    (binary.charCodeAt(17) << 16) |
+                    (binary.charCodeAt(18) << 8) |
+                    binary.charCodeAt(19)) >>> 0;
+      const height = ((binary.charCodeAt(20) << 24) |
+                     (binary.charCodeAt(21) << 16) |
+                     (binary.charCodeAt(22) << 8) |
+                     binary.charCodeAt(23)) >>> 0;
+      if (width > 0 && height > 0) {
+        const ratio = width / height;
+        if (ratio >= maxW / maxH) {
+          cx = maxW;
+          cy = Math.round(maxW / ratio);
+        } else {
+          cy = maxH;
+          cx = Math.round(maxH * ratio);
+        }
+      }
+    }
+  } catch (e) {}
+  return { cx, cy };
+}
+
+export async function embedSignatureToZip(zip: JSZip, signatureImage: string): Promise<void> {
+  const base64 = signatureImage.replace(/^data:image\/\w+;base64,/, '');
+  zip.file('word/media/signature.png', base64, { base64: true });
+
+  const contentTypesPath = '[Content_Types].xml';
+  let contentTypesXml = await zip.file(contentTypesPath)?.async('string');
+  if (contentTypesXml && !/Extension="png"/i.test(contentTypesXml)) {
+    const pngType = '<Default Extension="png" ContentType="image/png"/>';
+    contentTypesXml = contentTypesXml.replace('</Types>', pngType + '</Types>');
+    zip.file(contentTypesPath, contentTypesXml);
+  }
+
+  const relsPath = 'word/_rels/document.xml.rels';
+  let relsXml = await zip.file(relsPath)?.async('string');
+  if (relsXml) {
+    if (!relsXml.includes('Id="rIdSig"')) {
+      const relNode = '<Relationship Id="rIdSig" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/signature.png"/>';
+      relsXml = relsXml.replace('</Relationships>', relNode + '</Relationships>');
+      zip.file(relsPath, relsXml);
+    }
+  } else {
+    const newRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSig" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/signature.png"/>
+</Relationships>`;
+    zip.file(relsPath, newRels);
+  }
+}
+
+export interface QuickSignOptions {
+  teacherName?: string;
+  location?: string;
+  approverTitle?: string;
+  approverName?: string;
+  signingDate?: Date | string;
+  signatureImage: string;
+  showReflection?: boolean;
+  reflectionLines?: number;
+}
+
+/**
+ * Directly signs a Word document (.docx) at the teacher's signature slot:
+ * - Detects existing signature table with 'GIÁO VIÊN THỰC HIỆN' / 'Người soạn' / 'Giáo viên giảng dạy' and inserts signature.
+ * - If not found, appends the standardized 2-column signature table before the final sectPr.
+ * - Does not modify headers, timetable tables, or document body text.
+ */
+export async function signWordDocument(
+  file: File | Blob,
+  options: QuickSignOptions,
+  onLog?: (msg: string) => void
+): Promise<Blob> {
+  onLog?.(">> Đang mở file Word...");
+  const zip = await JSZip.loadAsync(file);
+
+  onLog?.(">> Đang nhúng ảnh chữ ký...");
+  await embedSignatureToZip(zip, options.signatureImage);
+
+  const { cx, cy } = calculateSignatureDimensions(options.signatureImage);
+
+  const signatureDrawingXml = `
+    <w:p>
+      <w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="60"/></w:pPr>
+      <w:r>
+        <w:drawing>
+          <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+            <wp:extent cx="${cx}" cy="${cy}"/>
+            <wp:effectExtent l="0" t="0" r="0" b="0"/>
+            <wp:docPr id="99999" name="Signature"/>
+            <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
+            <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <pic:nvPicPr>
+                    <pic:cNvPr id="99999" name="signature.png"/>
+                    <pic:cNvPicPr/>
+                  </pic:nvPicPr>
+                  <pic:blipFill>
+                    <a:blip r:embed="rIdSig" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+                    <a:stretch><a:fillRect/></a:stretch>
+                  </pic:blipFill>
+                  <pic:spPr>
+                    <a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+                    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                  </pic:spPr>
+                </pic:pic>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  `;
+
+  const documentXmlPath = 'word/document.xml';
+  let docXml = await zip.file(documentXmlPath)?.async('string');
+  if (!docXml) throw new Error('Không đọc được nội dung văn bản (word/document.xml).');
+
+  // Ensure namespaces exist on w:document
+  const namespacesToAdd = [
+    { prefix: 'xmlns:r', uri: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships' },
+    { prefix: 'xmlns:wp', uri: 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing' },
+    { prefix: 'xmlns:a', uri: 'http://schemas.openxmlformats.org/drawingml/2006/main' },
+    { prefix: 'xmlns:pic', uri: 'http://schemas.openxmlformats.org/drawingml/2006/picture' },
+  ];
+  for (const ns of namespacesToAdd) {
+    if (!docXml.includes(`${ns.prefix}=`)) {
+      docXml = docXml.replace('<w:document ', `<w:document ${ns.prefix}="${ns.uri}" `);
+    }
+  }
+
+  // Check if document already has a teacher signature cell in a table
+  let signed = false;
+  const gvCellRegex = /(<w:tc[\s\S]*?>[\s\S]*?(?:GIÁO\s*VIÊN\s*THỰC\s*HIỆN|Người\s*soạn|Giáo\s*viên\s*giảng\s*dạy)[\s\S]*?<\/w:tc>)/i;
+  const match = docXml.match(gvCellRegex);
+
+  if (match) {
+    onLog?.(">> Đã tìm thấy vị trí Giáo viên thực hiện trong tài liệu...");
+    let cellXml = match[1];
+    if (cellXml.includes('<w:drawing')) {
+      // Replace existing drawing
+      cellXml = cellXml.replace(/<w:p[^>]*>[\s\S]*?<w:drawing[\s\S]*?<\/w:drawing>[\s\S]*?<\/w:p>/, signatureDrawingXml);
+    } else {
+      // Insert after the title paragraph
+      const firstPEnd = cellXml.indexOf('</w:p>');
+      if (firstPEnd !== -1) {
+        cellXml = cellXml.slice(0, firstPEnd + 6) + signatureDrawingXml + cellXml.slice(firstPEnd + 6);
+      } else {
+        cellXml = cellXml.replace('</w:tc>', `${signatureDrawingXml}</w:tc>`);
+      }
+    }
+    docXml = docXml.replace(match[1], cellXml);
+    signed = true;
+  }
+
+  if (!signed) {
+    onLog?.(">> Thêm bảng chữ ký chuẩn vào cuối giáo án...");
+    const reflectionConfig: ReflectionSettings = {
+      enabled: true,
+      title: 'Rút kinh nghiệm',
+      contentLines: options.reflectionLines || 3,
+      approverTitle: (options.approverTitle as any) || 'TỔ TRƯỞNG KÝ DUYỆT',
+      approverName: options.approverName || '',
+      year: '2026',
+      autoSigningDate: true,
+      showReflection: options.showReflection ?? false,
+      showSigningDate: true,
+      location: options.location || 'Đường Hào',
+      teacherName: options.teacherName || 'Phạm Đình Quang',
+      insertSignature: true,
+      signatureImage: options.signatureImage
+    };
+
+    const sigBlockXml = generateReflectionXml(reflectionConfig, { font: 'Times New Roman', size: '28' });
+
+    const bodyStartTag = '<w:body>';
+    const bodyEndTag = '</w:body>';
+    const bodyStartIndex = docXml.indexOf(bodyStartTag);
+    const bodyEndIndex = docXml.lastIndexOf(bodyEndTag);
+
+    if (bodyStartIndex !== -1 && bodyEndIndex !== -1) {
+      let bodyInner = docXml.slice(bodyStartIndex + bodyStartTag.length, bodyEndIndex);
+
+      // Extract trailing sectPr so sigBlockXml is inserted before sectPr
+      let sectPrXml = '';
+      const sectPrMatch = bodyInner.match(/<w:sectPr[^>]*>[\s\S]*?<\/w:sectPr>\s*$/);
+      if (sectPrMatch) {
+        sectPrXml = sectPrMatch[0];
+        bodyInner = bodyInner.slice(0, bodyInner.length - sectPrMatch[0].length);
+      }
+
+      docXml = docXml.slice(0, bodyStartIndex + bodyStartTag.length) +
+               bodyInner +
+               sigBlockXml +
+               sectPrXml +
+               docXml.slice(bodyEndIndex);
+    }
+  }
+
+  zip.file(documentXmlPath, docXml);
+
+  onLog?.(">> Hoàn tất ký giáo án!");
+  const output = await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+
+  return output;
+}
+

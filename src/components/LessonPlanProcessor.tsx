@@ -7,7 +7,7 @@ import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2
 import { SignatureModal } from './SignatureModal';
 import { AppendixManager } from './AppendixManager';
 import { CoffeeModal } from './CoffeeModal';
-import { processWordFile, ScheduleItem, ProcessingOptions, HeaderFooterSettings } from '@/lib/word-utils';
+import { processWordFile, signWordDocument, ScheduleItem, ProcessingOptions, HeaderFooterSettings } from '@/lib/word-utils';
 import { toast } from 'sonner';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -378,6 +378,59 @@ export function LessonPlanProcessor() {
     }
   };
 
+  const handleQuickSign = async () => {
+    if (!file) {
+      toast.error('Vui lòng chọn hoặc tải lên file giáo án (.docx) cần ký!');
+      return;
+    }
+
+    if (!savedSignatureUrl) {
+      toast.info('Bạn chưa có ảnh chữ ký. Vui lòng tạo hoặc tải lên chữ ký trước!');
+      setShowSigModal(true);
+      return;
+    }
+
+    setIsProcessing(true);
+    setLogs(["🖋️ Bắt đầu ký giáo án..."]);
+
+    try {
+      const outputBlob = await signWordDocument(
+        file,
+        {
+          teacherName: reflectionSettings.teacherName || 'Phạm Đình Quang',
+          location: reflectionSettings.location || 'Đường Hào',
+          approverTitle: reflectionSettings.approverTitle || 'TỔ TRƯỞNG KÝ DUYỆT',
+          approverName: reflectionSettings.approverName || '',
+          signatureImage: savedSignatureUrl,
+          showReflection: reflectionSettings.showReflection ?? false,
+          reflectionLines: reflectionSettings.contentLines || 3,
+        },
+        (msg) => setLogs(prev => [...prev, msg])
+      );
+
+      const url = URL.createObjectURL(outputBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      const originalName = file.name.replace(/\.docx$/i, '');
+      link.download = `[DaKy]_${originalName}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Ký giáo án thành công và đã tải xuống!');
+      setLogs(prev => [...prev, "✨ Đã chèn chữ ký vào đúng vị trí và tải xuống thành công!"]);
+    } catch (error) {
+      console.error('Quick sign error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Có lỗi xảy ra khi ký file';
+      toast.error(errorMsg);
+      setLogs(prev => [...prev, `❌ Lỗi ký giáo án: ${errorMsg}`]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -567,21 +620,39 @@ export function LessonPlanProcessor() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleQuickSign}
+                disabled={isProcessing}
+                className="w-full sm:w-1/2 h-12 text-sm sm:text-base font-bold border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/40 shadow-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                title="Ký ngay vào đúng vị trí giáo viên mà không làm thay đổi các phần khác của giáo án"
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <PenTool className="w-5 h-5 text-emerald-600" />
+                )}
+                <span>🖋️ Ký giáo án (Chỉ chèn chữ ký)</span>
+              </Button>
+
               <Button 
+                type="button"
                 onClick={handleProcess} 
-                className="w-full h-12 text-lg font-semibold" 
+                className="w-full sm:w-1/2 h-12 text-sm sm:text-base font-semibold shadow-sm flex items-center justify-center gap-2" 
                 disabled={isProcessing || !file || !weekNumber || !periodNumber || !selectedSubject}
+                title="Soạn giáo án đầy đủ: Điền tuần, tiết, ngày dạy, năng lực số và ký duyệt"
               >
                 {isProcessing ? (
                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                     Đang xử lý...
                   </>
                 ) : (
                   <>
-                    <FileDown className="mr-2 h-5 w-5" />
-                    Xử lý & Tải xuống
+                    <FileDown className="w-5 h-5" />
+                    Xử lý toàn diện & Tải xuống
                   </>
                 )}
               </Button>
@@ -839,7 +910,7 @@ export function LessonPlanProcessor() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-700">
                   <Layout className="w-4 h-4" />
-                  Thêm Rút kinh nghiệm
+                  Rút kinh nghiệm & Ký duyệt
                 </CardTitle>
                 <Switch 
                   checked={enableReflection} 
@@ -847,29 +918,85 @@ export function LessonPlanProcessor() {
                 />
               </div>
               <CardDescription className="text-xs">
-                Chèn phần rút kinh nghiệm và ký duyệt vào cuối giáo án.
+                Chèn phần rút kinh nghiệm và chữ ký duyệt vào cuối giáo án.
               </CardDescription>
-                          </CardHeader>
-              {enableReflection && (
-                <CardContent className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="auto-signing" className="text-xs">
-                      Tự động tính ngày ký (Thứ 7 tuần trước)
-                    </Label>
-                    <Switch
-                      id="auto-signing"
-                      checked={reflectionSettings?.autoSigningDate !== false}
-                      onCheckedChange={(c) => updateReflection('autoSigningDate', c)}
+            </CardHeader>
+            {enableReflection && (
+              <CardContent className="space-y-3.5 animate-in fade-in slide-in-from-top-2">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">Họ tên giáo viên</Label>
+                    <Input
+                      value={reflectionSettings.teacherName || ''}
+                      onChange={(e) => updateReflection('teacherName', e.target.value)}
+                      placeholder="VD: Phạm Đình Quang"
+                      className="h-8 text-xs bg-white"
                     />
                   </div>
-                  
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">Địa danh ký</Label>
+                    <Input
+                      value={reflectionSettings.location || ''}
+                      onChange={(e) => updateReflection('location', e.target.value)}
+                      placeholder="VD: Đường Hào"
+                      className="h-8 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">Chức vụ duyệt</Label>
+                    <select
+                      value={reflectionSettings.approverTitle || 'TỔ TRƯỞNG KÝ DUYỆT'}
+                      onChange={(e) => updateReflection('approverTitle', e.target.value)}
+                      className="flex h-8 w-full rounded-md border border-input bg-white px-2 py-1 text-xs"
+                    >
+                      <option value="TỔ TRƯỞNG KÝ DUYỆT">Tổ trưởng</option>
+                      <option value="TỔ PHÓ KÝ DUYỆT">Tổ phó</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">Tên người duyệt</Label>
+                    <Input
+                      value={reflectionSettings.approverName || ''}
+                      onChange={(e) => updateReflection('approverName', e.target.value)}
+                      placeholder="(Để trống nếu ký tay)"
+                      className="h-8 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <Label htmlFor="auto-signing" className="text-xs">
+                    Tự động tính ngày ký (Thứ 7 tuần trước)
+                  </Label>
+                  <Switch
+                    id="auto-signing"
+                    checked={reflectionSettings?.autoSigningDate !== false}
+                    onCheckedChange={(c) => updateReflection('autoSigningDate', c)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="show-reflection" className="text-xs">
+                    Thêm mục "Rút kinh nghiệm"
+                  </Label>
+                  <Switch
+                    id="show-reflection"
+                    checked={reflectionSettings?.showReflection !== false}
+                    onCheckedChange={(c) => updateReflection('showReflection', c)}
+                  />
+                </div>
+                
+                <div className="border-t border-amber-200/80 pt-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="insert-signature" className="text-xs">
-                      Chèn ảnh chữ ký
+                    <Label htmlFor="insert-signature" className="text-xs font-semibold text-amber-900">
+                      Chèn ảnh chữ ký giáo viên
                     </Label>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setShowSigModal(true)}>
-                        <PenTool className="w-3 h-3 mr-1" /> Tạo
+                      <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 bg-white" onClick={() => setShowSigModal(true)}>
+                        <PenTool className="w-3 h-3 mr-1" /> {savedSignatureUrl ? 'Đổi chữ ký' : 'Tạo mới'}
                       </Button>
                       <Switch
                         id="insert-signature"
@@ -878,35 +1005,69 @@ export function LessonPlanProcessor() {
                       />
                     </div>
                   </div>
-                  {reflectionSettings?.insertSignature && (
-                    savedSignatureUrl ? (
-                      <div className="flex items-center justify-between mt-2 border border-dashed border-amber-200 p-2 rounded bg-white">
-                        <img src={savedSignatureUrl} className="h-12 object-contain" alt="Chữ ký" />
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-6 text-[10px] text-red-500 hover:text-red-700"
-                          onClick={() => {
-                            setSavedSignatureUrl('');
-                            localStorage.removeItem('lesson-plan-signature-image');
+
+                  {savedSignatureUrl ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between border border-dashed border-amber-300 p-2.5 rounded-lg bg-white shadow-xs">
+                        <div 
+                          className="h-12 w-32 flex items-center justify-center p-1 rounded bg-slate-50 border border-slate-200"
+                          style={{
+                            backgroundImage: 'linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)',
+                            backgroundSize: '10px 10px',
+                            backgroundPosition: '0 0, 0 5px, 5px -5px, -5px 0px'
                           }}
                         >
-                          Xóa chữ ký
-                        </Button>
+                          <img src={savedSignatureUrl} className="max-h-full max-w-full object-contain" alt="Chữ ký đã lưu" />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-7 text-[11px] px-2 text-slate-700 bg-white"
+                            onClick={() => setShowSigModal(true)}
+                          >
+                            Ký lại
+                          </Button>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 text-[11px] text-red-500 hover:text-red-700"
+                            onClick={() => {
+                              setSavedSignatureUrl('');
+                              localStorage.removeItem('lesson-plan-signature-image');
+                              toast.info('Đã xóa chữ ký');
+                            }}
+                          >
+                            Xóa
+                          </Button>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="text-[11px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-200 mt-2 flex items-center justify-between">
-                        <span>Chưa có ảnh chữ ký mẫu.</span>
-                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 ml-2" onClick={() => setShowSigModal(true)}>
-                          <PenTool className="w-3 h-3 mr-1" /> Tải lên / Tạo ngay
-                        </Button>
-                      </div>
-                    )
+
+                      {/* Quick Sign shortcut right inside signature card */}
+                      <Button
+                        type="button"
+                        onClick={handleQuickSign}
+                        disabled={isProcessing}
+                        className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <PenTool className="w-3.5 h-3.5" />
+                        Ký ngay vào file giáo án đang chọn
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-amber-700 bg-amber-100/60 p-2.5 rounded-lg border border-amber-300 flex items-center justify-between">
+                      <span>Chưa có ảnh chữ ký lưu sẵn.</span>
+                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 ml-2 bg-white" onClick={() => setShowSigModal(true)}>
+                        <PenTool className="w-3 h-3 mr-1" /> Tạo / Tải lên ngay
+                      </Button>
+                    </div>
                   )}
-                </CardContent>
-              )}
-            </Card>
+                </div>
+              </CardContent>
+            )}
+          </Card>
         </div>
 
       </div>
