@@ -1001,6 +1001,63 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
   `;
 }
 
+function cleanTrailingSignatureAndReflection(bodyContent: string): { cleanBody: string; sectPrXml: string } {
+  let content = bodyContent.trimEnd();
+
+  // 1. Extract trailing sectPr first so reflection/signatures are at the end
+  let sectPrXml = '';
+  const sectPrMatch = content.match(/<w:sectPr[^>]*>[\s\S]*?<\/w:sectPr>\s*$/);
+  if (sectPrMatch) {
+    sectPrXml = sectPrMatch[0];
+    content = content.slice(0, content.length - sectPrMatch[0].length).trimEnd();
+  }
+
+  // 2. Clean trailing empty paragraphs and previous signature/reflection tables
+  const patterns = [
+    /Rút\s*kinh\s*nghiệm/i,
+    /Ký\s*duyệt/i,
+    /Tổ\s*trưởng/i,
+    /Tổ\s*phó/i,
+    /GIÁO\s*VIÊN\s*THỰC\s*HIỆN/i,
+    /Người\s*soạn/i,
+    /Giáo\s*viên\s*giảng\s*dạy/i,
+    /Hiệu\s*trưởng/i,
+    /\.{10,}/
+  ];
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    content = content.trimEnd();
+
+    if (content.endsWith('</w:p>')) {
+      const pStart = Math.max(content.lastIndexOf('<w:p '), content.lastIndexOf('<w:p>'));
+      if (pStart !== -1) {
+        const pXml = content.slice(pStart);
+        const text = pXml.replace(/<[^>]+>/g, '').trim();
+        if (text === '' || patterns.some(p => p.test(text))) {
+          content = content.slice(0, pStart);
+          changed = true;
+          continue;
+        }
+      }
+    } else if (content.endsWith('</w:tbl>')) {
+      const tblStart = Math.max(content.lastIndexOf('<w:tbl '), content.lastIndexOf('<w:tbl>'));
+      if (tblStart !== -1) {
+        const tblXml = content.slice(tblStart);
+        const text = tblXml.replace(/<[^>]+>/g, '').trim();
+        if (text === '' || patterns.some(p => p.test(text))) {
+          content = content.slice(0, tblStart);
+          changed = true;
+          continue;
+        }
+      }
+    }
+  }
+
+  return { cleanBody: content, sectPrXml };
+}
+
 export async function processWordFile(file: File, options: ProcessingOptions, onLog?: (msg: string) => void): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);
@@ -1133,62 +1190,15 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
     }
   }
 
-  // CLEANUP TRAILING REFLECTION LOGIC:
-  const reflectionPatterns = [
-    /Rút\s*kinh\s*nghiệm/i,
-    /Ký\s*duyệt/i,
-    /Tổ\s*trưởng/i,
-    /Hiệu\s*trưởng/i,
-    /Phó\s*hiệu\s*trưởng/i,
-    /\.{10,}/ // Dotted lines
-  ];
-
-  changed = true;
-  while (changed) {
-    changed = false;
-    
-    // Find the last element (paragraph or table)
-    const lastPStart = cleanBodyContent.lastIndexOf('<w:p');
-    const lastTblStart = cleanBodyContent.lastIndexOf('<w:tbl>');
-    
-    let elementStart = -1;
-    let elementEnd = -1;
-
-    if (lastPStart !== -1 && (lastTblStart === -1 || lastPStart > lastTblStart)) {
-      elementStart = lastPStart;
-      elementEnd = cleanBodyContent.indexOf('</w:p>', lastPStart) + 6;
-    } else if (lastTblStart !== -1) {
-      elementStart = lastTblStart;
-      elementEnd = cleanBodyContent.indexOf('</w:tbl>', lastTblStart) + 8;
-    }
-
-    // If we found an element near the end
-    if (elementStart !== -1 && elementEnd >= cleanBodyContent.length - 100) {
-      const elementContent = cleanBodyContent.slice(elementStart, elementEnd);
-      const plainText = elementContent.replace(/<[^>]+>/g, '');
-      
-      if (reflectionPatterns.some(pattern => pattern.test(plainText)) || plainText.trim() === '') {
-        // It's a reflection element or empty, remove it
-        cleanBodyContent = cleanBodyContent.slice(0, elementStart);
-        changed = true;
-      }
-    }
-  }
-
-  // Extract trailing sectPr from cleanBodyContent so reflectionXml is placed BEFORE sectPr
-  let sectPrXml = '';
-  const sectPrMatch = cleanBodyContent.match(/<w:sectPr[^>]*>[\s\S]*?<\/w:sectPr>\s*$/);
-  if (sectPrMatch) {
-    sectPrXml = sectPrMatch[0];
-    cleanBodyContent = cleanBodyContent.slice(0, cleanBodyContent.length - sectPrMatch[0].length);
-  }
+  // Clean trailing signature / reflection using robust tag matching
+  const { cleanBody: finalCleanBody, sectPrXml } = cleanTrailingSignatureAndReflection(cleanBodyContent);
 
   let newDocumentXml = 
     currentDocXml.slice(0, bodyStartIndex + bodyStartTag.length) + 
     headerXml + 
-    cleanBodyContent + 
+    finalCleanBody + 
     reflectionXml + 
-    sectPrXml +
+    sectPrXml + 
     currentDocXml.slice(bodyEndIndex);
 
   // If signature image is embedded, ensure namespaces exist on w:document
@@ -1365,75 +1375,45 @@ export async function signWordDocument(
     }
   }
 
-  // Check if document already has a teacher signature cell in a table
-  let signed = false;
-  const gvCellRegex = /(<w:tc[\s\S]*?>[\s\S]*?(?:GIÁO\s*VIÊN\s*THỰC\s*HIỆN|Người\s*soạn|Giáo\s*viên\s*giảng\s*dạy)[\s\S]*?<\/w:tc>)/i;
-  const match = docXml.match(gvCellRegex);
+  const bodyStartTag = '<w:body>';
+  const bodyEndTag = '</w:body>';
+  const bodyStartIndex = docXml.indexOf(bodyStartTag);
+  const bodyEndIndex = docXml.lastIndexOf(bodyEndTag);
 
-  if (match) {
-    onLog?.(">> Đã tìm thấy vị trí Giáo viên thực hiện trong tài liệu...");
-    let cellXml = match[1];
-    if (cellXml.includes('<w:drawing')) {
-      // Replace existing drawing
-      cellXml = cellXml.replace(/<w:p[^>]*>[\s\S]*?<w:drawing[\s\S]*?<\/w:drawing>[\s\S]*?<\/w:p>/, signatureDrawingXml);
-    } else {
-      // Insert after the title paragraph
-      const firstPEnd = cellXml.indexOf('</w:p>');
-      if (firstPEnd !== -1) {
-        cellXml = cellXml.slice(0, firstPEnd + 6) + signatureDrawingXml + cellXml.slice(firstPEnd + 6);
-      } else {
-        cellXml = cellXml.replace('</w:tc>', `${signatureDrawingXml}</w:tc>`);
-      }
-    }
-    docXml = docXml.replace(match[1], cellXml);
-    signed = true;
+  if (bodyStartIndex === -1 || bodyEndIndex === -1) {
+    throw new Error('Định dạng file Word không hợp lệ (không tìm thấy w:body).');
   }
 
-  if (!signed) {
-    onLog?.(">> Thêm bảng chữ ký chuẩn vào cuối giáo án...");
-    const reflectionConfig: ReflectionSettings = {
-      enabled: true,
-      title: 'Rút kinh nghiệm',
-      contentLines: options.reflectionLines || 3,
-      approverTitle: (options.approverTitle as any) || 'TỔ TRƯỞNG KÝ DUYỆT',
-      approverName: options.approverName || '',
-      year: '2026',
-      autoSigningDate: true,
-      showReflection: options.showReflection ?? false,
-      showSigningDate: true,
-      location: options.location || 'Đường Hào',
-      teacherName: options.teacherName || 'Phạm Đình Quang',
-      insertSignature: true,
-      signatureImage: options.signatureImage
-    };
+  const rawBody = docXml.slice(bodyStartIndex + bodyStartTag.length, bodyEndIndex);
 
-    const sigBlockXml = generateReflectionXml(reflectionConfig, { font: 'Times New Roman', size: '28' });
+  onLog?.(">> Đang dọn dẹp và chuẩn bị vị trí ký...");
+  const { cleanBody, sectPrXml } = cleanTrailingSignatureAndReflection(rawBody);
 
-    const bodyStartTag = '<w:body>';
-    const bodyEndTag = '</w:body>';
-    const bodyStartIndex = docXml.indexOf(bodyStartTag);
-    const bodyEndIndex = docXml.lastIndexOf(bodyEndTag);
+  const reflectionConfig: ReflectionSettings = {
+    enabled: true,
+    title: 'Rút kinh nghiệm',
+    contentLines: options.reflectionLines || 3,
+    approverTitle: (options.approverTitle as any) || 'TỔ TRƯỞNG KÝ DUYỆT',
+    approverName: options.approverName || '',
+    year: '2026',
+    autoSigningDate: true,
+    showReflection: options.showReflection ?? false,
+    showSigningDate: true,
+    location: options.location || 'Đường Hào',
+    teacherName: options.teacherName || 'Phạm Đình Quang',
+    insertSignature: true,
+    signatureImage: options.signatureImage
+  };
 
-    if (bodyStartIndex !== -1 && bodyEndIndex !== -1) {
-      let bodyInner = docXml.slice(bodyStartIndex + bodyStartTag.length, bodyEndIndex);
+  const sigBlockXml = generateReflectionXml(reflectionConfig, { font: 'Times New Roman', size: '28' });
 
-      // Extract trailing sectPr so sigBlockXml is inserted before sectPr
-      let sectPrXml = '';
-      const sectPrMatch = bodyInner.match(/<w:sectPr[^>]*>[\s\S]*?<\/w:sectPr>\s*$/);
-      if (sectPrMatch) {
-        sectPrXml = sectPrMatch[0];
-        bodyInner = bodyInner.slice(0, bodyInner.length - sectPrMatch[0].length);
-      }
+  const newDocXml = docXml.slice(0, bodyStartIndex + bodyStartTag.length) +
+                    cleanBody +
+                    sigBlockXml +
+                    sectPrXml +
+                    docXml.slice(bodyEndIndex);
 
-      docXml = docXml.slice(0, bodyStartIndex + bodyStartTag.length) +
-               bodyInner +
-               sigBlockXml +
-               sectPrXml +
-               docXml.slice(bodyEndIndex);
-    }
-  }
-
-  zip.file(documentXmlPath, docXml);
+  zip.file(documentXmlPath, newDocXml);
 
   onLog?.(">> Hoàn tất ký giáo án!");
   const output = await zip.generateAsync({
