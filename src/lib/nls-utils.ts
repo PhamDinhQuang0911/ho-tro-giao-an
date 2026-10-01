@@ -543,9 +543,17 @@ export function removeExistingNLSFromDocx(xmlDoc: Document, log?: (msg: string) 
   }
 }
 
-export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSContent, log: (msg: string) => void, addNlsColumn: boolean = true): Promise<void> {
+export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSContent, log: (msg: string) => void, addNlsColumn: boolean = false): Promise<void> {
   const docXmlFile = zip.file("word/document.xml");
   if (!docXmlFile) throw new Error("File word/document.xml không tồn tại.");
+
+  if (log) {
+    if (addNlsColumn) {
+      log(">> Chế độ NLS: Tạo thêm Cột 3 riêng (Cột NLS / AI)");
+    } else {
+      log(">> Chế độ NLS: Tích hợp trực tiếp vào Cột 2 (Bảng 2 cột sẵn có)");
+    }
+  }
 
   let docXmlStr = await docXmlFile.async("string");
   const parser = new DOMParser();
@@ -743,7 +751,8 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
         const font = style.font || baseStyle.font;
         const size = style.size || baseStyle.size;
         const color = item.type === 'ai' ? "FF0000" : "000000";
-        const newPara = createParagraphNode(xmlDoc, item.content, false, color, font, size);
+        // When inserting directly into column 2, format with italics so it stands out nicely
+        const newPara = createParagraphNode(xmlDoc, item.content, false, color, font, size, !addNlsColumn);
 
         // Find parent row if inside a table
         let node: Node | null = anchorPara;
@@ -799,7 +808,7 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
                 hasNlsCol = true;
               }
 
-              // Append content to the last cell of the current row
+              // Append content to the last cell of the current row (Column 3)
               const tcs = rowNode.getElementsByTagName("w:tc");
               if (tcs.length > 0) {
                 const lastTc = tcs[tcs.length - 1];
@@ -811,14 +820,19 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
               }
             } else {
               // Insert directly into the 2nd cell (or the last cell if there are < 2 cells)
-              const tcs = rowNode.getElementsByTagName("w:tc");
+              const tcs = Array.from(rowNode.getElementsByTagName("w:tc"));
               if (tcs.length > 0) {
                 const targetTc = tcs.length >= 2 ? tcs[1] : tcs[0];
                 const existingParas = Array.from(targetTc.getElementsByTagName("w:p"));
                 if (existingParas.length === 1 && (existingParas[0].textContent || "").trim() === "") {
                   targetTc.removeChild(existingParas[0]);
                 }
-                targetTc.appendChild(newPara);
+                // If anchorPara is inside targetTc, insert right after anchorPara
+                if (anchorPara.parentNode === targetTc) {
+                  targetTc.insertBefore(newPara, anchorPara.nextSibling);
+                } else {
+                  targetTc.appendChild(newPara);
+                }
               }
             }
           }

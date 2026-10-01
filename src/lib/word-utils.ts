@@ -1119,7 +1119,7 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
     const nlsContent = await generateCompetencyIntegration(prompt, options.nlsOptions.apiKey, options.nlsOptions.aiModel);
     
     onLog?.(">> Đang tích hợp Năng lực số vào file Word...");
-    await injectNLSIntoDocx(zip, nlsContent, (msg) => onLog?.(msg), options.nlsOptions?.addNlsColumn ?? true);
+    await injectNLSIntoDocx(zip, nlsContent, (msg) => onLog?.(msg), options.nlsOptions?.addNlsColumn ?? false);
   }
 
   const { xml: headerXml, earliestTeachingDate } = generateHeaderXml(options, baseStyle);

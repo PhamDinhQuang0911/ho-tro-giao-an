@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool, Coffee, Youtube, UserCheck } from 'lucide-react';
+import { FileUp, FileDown, Calendar as CalendarIcon, Loader2, Info, CheckCircle2, Sparkles, Key, Eye, EyeOff, Terminal, Layout, PenTool, Coffee, Youtube, UserCheck, Columns2, Columns3, TableProperties } from 'lucide-react';
 import { SignatureModal } from './SignatureModal';
 import { AppendixManager } from './AppendixManager';
 import { CoffeeModal } from './CoffeeModal';
@@ -94,7 +94,7 @@ export function LessonPlanProcessor() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [nlsGrade, setNlsGrade] = useState<GradeType | ''>('');
   const [aiModel, setAiModel] = useState<string>('gemini-3.6-flash');
-  const [addNlsColumn, setAddNlsColumn] = useState(true);
+  const [addNlsColumn, setAddNlsColumn] = useState(false);
   const [mergePeriods, setMergePeriods] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [showSigModal, setShowSigModal] = useState(false);
@@ -169,6 +169,11 @@ export function LessonPlanProcessor() {
     
     const savedModel = localStorage.getItem('USER_GEMINI_AI_MODEL');
     if (savedModel) setAiModel(savedModel);
+
+    const savedAddNlsCol = localStorage.getItem('USER_ADD_NLS_COL');
+    if (savedAddNlsCol !== null) {
+      setAddNlsColumn(savedAddNlsCol === 'true');
+    }
   }, []);
 
   // Auto sync approver title and name when selectedSubject or subjectApprovers change
@@ -902,18 +907,103 @@ export function LessonPlanProcessor() {
                   />
                 </div>
 
-                <div className="flex items-center space-x-2 pt-2 border-t border-teal-100 mt-2">
-                  <Switch 
-                    id="add-nls-column"
-                    checked={addNlsColumn}
-                    onCheckedChange={(c) => {
-                      setAddNlsColumn(c);
-                      localStorage.setItem('USER_ADD_NLS_COL', c.toString());
-                    }}
-                  />
-                  <Label htmlFor="add-nls-column" className="text-xs">
-                    Thêm cột NLS-AI riêng (Tắt để chèn thẳng vào cột 2)
-                  </Label>
+                {/* TÙY CHỌN VỊ TRÍ TÍCH HỢP NĂNG LỰC SỐ */}
+                <div className="space-y-2 pt-2.5 border-t border-teal-200/70 mt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
+                      <TableProperties className="w-3.5 h-3.5 text-teal-600" />
+                      Vị trí tích hợp vào Bảng hoạt động:
+                    </Label>
+                    <span className="text-[10px] text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full font-semibold border border-teal-200">
+                      {!addNlsColumn ? 'Cột 2 (Bảng 2 cột)' : 'Cột 3 (Tạo cột mới)'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Option 1: Tích hợp trực tiếp vào Cột 2 */}
+                    <div
+                      onClick={() => {
+                        setAddNlsColumn(false);
+                        localStorage.setItem('USER_ADD_NLS_COL', 'false');
+                        toast.success('Đã chọn: Tích hợp trực tiếp vào Cột 2 (Bảng 2 cột)');
+                      }}
+                      className={cn(
+                        "p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none",
+                        !addNlsColumn
+                          ? "border-teal-600 bg-teal-50/90 ring-2 ring-teal-500/20 shadow-xs"
+                          : "border-slate-200 bg-white/70 hover:border-slate-300 hover:bg-white text-slate-600"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "p-1.5 rounded-lg shrink-0",
+                            !addNlsColumn ? "bg-teal-600 text-white shadow-2xs" : "bg-slate-100 text-slate-500"
+                          )}>
+                            <Columns2 className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className={cn("text-xs font-bold block", !addNlsColumn ? "text-teal-950" : "text-slate-700")}>
+                              Vào Cột 2 (Sẵn có)
+                            </span>
+                            <span className="text-[10px] text-emerald-600 font-semibold">Khuyên dùng</span>
+                          </div>
+                        </div>
+                        <input
+                          type="radio"
+                          name="nls-column-mode"
+                          checked={!addNlsColumn}
+                          onChange={() => {}}
+                          className="w-4 h-4 text-teal-600 accent-teal-600 cursor-pointer"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
+                        Chèn trực tiếp mã NLS/AI vào <strong>Cột số 2</strong> (Nội dung/Hoạt động). <strong>Giữ nguyên bảng 2 cột</strong> sẵn có của giáo án.
+                      </p>
+                    </div>
+
+                    {/* Option 2: Tạo thêm Cột 3 riêng */}
+                    <div
+                      onClick={() => {
+                        setAddNlsColumn(true);
+                        localStorage.setItem('USER_ADD_NLS_COL', 'true');
+                        toast.success('Đã chọn: Tạo thêm Cột 3 riêng (NLS / AI)');
+                      }}
+                      className={cn(
+                        "p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none",
+                        addNlsColumn
+                          ? "border-teal-600 bg-teal-50/90 ring-2 ring-teal-500/20 shadow-xs"
+                          : "border-slate-200 bg-white/70 hover:border-slate-300 hover:bg-white text-slate-600"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "p-1.5 rounded-lg shrink-0",
+                            addNlsColumn ? "bg-teal-600 text-white shadow-2xs" : "bg-slate-100 text-slate-500"
+                          )}>
+                            <Columns3 className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className={cn("text-xs font-bold block", addNlsColumn ? "text-teal-950" : "text-slate-700")}>
+                              Tạo Cột 3 riêng
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-normal">Thêm cột NLS</span>
+                          </div>
+                        </div>
+                        <input
+                          type="radio"
+                          name="nls-column-mode"
+                          checked={addNlsColumn}
+                          onChange={() => {}}
+                          className="w-4 h-4 text-teal-600 accent-teal-600 cursor-pointer"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
+                        Tự động tạo thêm <strong>Cột số 3 riêng</strong> bên phải bảng với tiêu đề "NLS / AI" để ghi mã năng lực số.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-teal-100 text-xs">
