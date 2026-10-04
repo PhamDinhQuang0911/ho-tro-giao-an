@@ -56,10 +56,17 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
   
   const allAvailableSessionsByClass: Record<string, any[]> = {};
 
+  const isSubjectMatch = (sSub: string, targetSub: string) => {
+    if (!sSub || !targetSub) return false;
+    const a = sSub.trim().toLowerCase();
+    const b = targetSub.trim().toLowerCase();
+    return a === b || a.startsWith(b) || b.startsWith(a);
+  };
+
   const getSessionsForWeek = (weekStart: Date, weekOffsetIdx: number) => {
     const currentWeekNum = (parseInt(weekNumber) || 0) + weekOffsetIdx;
     return schedule
-      .filter(s => s.subject.toLowerCase() === subject.toLowerCase())
+      .filter(s => isSubjectMatch(s.subject, subject))
       .sort((a, b) => {
         const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
         const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -78,10 +85,13 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
       });
   };
 
-  const classes = Array.from(new Set(schedule
-    .filter(s => s.subject.toLowerCase() === subject.toLowerCase())
+  let classes = Array.from(new Set(schedule
+    .filter(s => isSubjectMatch(s.subject, subject))
     .map(s => s.className)
   ));
+  if (classes.length === 0 && schedule.length > 0) {
+    classes = Array.from(new Set(schedule.map(s => s.className)));
+  }
 
   classes.forEach(className => {
     let classSessions: any[] = [];
@@ -200,7 +210,13 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
   return { xml, earliestTeachingDate };
 }
 
-function generateReflectionXml(settings: ReflectionSettings, style: { font?: string, size?: string }, earliestTeachingDate: Date | null) {
+function generateReflectionXml(
+  settings: ReflectionSettings, 
+  style: { font?: string, size?: string }, 
+  earliestTeachingDate: Date | null,
+  fallbackPrepDate?: Date,
+  weekOffset?: number
+) {
   if (!settings.enabled) return '';
 
   const showReflection = settings.showReflection !== false;  // default true
@@ -210,12 +226,44 @@ function generateReflectionXml(settings: ReflectionSettings, style: { font?: str
   const sizeXml = style.size ? `<w:sz w:val="${style.size}"/><w:szCs w:val="${style.size}"/>` : '<w:sz w:val="28"/><w:szCs w:val="28"/>';
   const smallSizeXml = style.size ? `<w:sz w:val="${Math.max(20, parseInt(style.size) - 4)}"/><w:szCs w:val="${Math.max(20, parseInt(style.size) - 4)}"/>` : '<w:sz w:val="24"/><w:szCs w:val="24"/>';
 
-  let signingDateStr = `ngày ...... tháng ...... năm ${settings.year}`;
+  let signingDateStr = `ngày ...... tháng ...... năm ${settings.year || '2026'}`;
   
-  if (settings.autoSigningDate && earliestTeachingDate) {
-    const startOfTeachingWeek = startOfWeek(earliestTeachingDate, { weekStartsOn: 1 });
-    const signingDate = addDays(startOfTeachingWeek, -2);
-    signingDateStr = `ngày ${format(signingDate, 'dd')} tháng ${format(signingDate, 'MM')} năm ${format(signingDate, 'yyyy')}`;
+  const mode = settings.signingDateMode || 
+    (settings.autoSigningDate === false 
+      ? (settings.customSigningDate ? 'custom' : 'blank') 
+      : 'auto');
+
+  if (mode === 'custom' && settings.customSigningDate) {
+    try {
+      const parts = settings.customSigningDate.split('-');
+      let d: Date;
+      if (parts.length === 3) {
+        d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      } else {
+        d = new Date(settings.customSigningDate);
+      }
+      if (!isNaN(d.getTime())) {
+        signingDateStr = `ngày ${format(d, 'dd')} tháng ${format(d, 'MM')} năm ${format(d, 'yyyy')}`;
+      }
+    } catch (e) {
+      console.error('Failed to parse customSigningDate', e);
+    }
+  } else if (mode === 'auto') {
+    let targetDate = earliestTeachingDate;
+    if (!targetDate && fallbackPrepDate) {
+      const offset = weekOffset || 1;
+      const startOfTargetWeek = addDays(startOfWeek(fallbackPrepDate, { weekStartsOn: 1 }), 7 * offset);
+      targetDate = startOfTargetWeek;
+    } else if (!targetDate) {
+      const startOfTargetWeek = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 7);
+      targetDate = startOfTargetWeek;
+    }
+
+    if (targetDate) {
+      const startOfTeachingWeek = startOfWeek(targetDate, { weekStartsOn: 1 });
+      const signingDate = addDays(startOfTeachingWeek, -2);
+      signingDateStr = `ngày ${format(signingDate, 'dd')} tháng ${format(signingDate, 'MM')} năm ${format(signingDate, 'yyyy')}`;
+    }
   }
 
   // Build reflection content lines
@@ -1123,7 +1171,9 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
   }
 
   const { xml: headerXml, earliestTeachingDate } = generateHeaderXml(options, baseStyle);
-  const reflectionXml = options.reflection ? generateReflectionXml(options.reflection, baseStyle, earliestTeachingDate) : '';
+  const reflectionXml = options.reflection 
+    ? generateReflectionXml(options.reflection, baseStyle, earliestTeachingDate, options.prepDate, options.weekOffset) 
+    : '';
   
   // Re-read documentXml because NLS might have changed it
   let currentDocXml = await zip.file(documentXmlPath)?.async('string') || documentXml;
@@ -1300,9 +1350,15 @@ export interface QuickSignOptions {
   approverTitle?: string;
   approverName?: string;
   signingDate?: Date | string;
+  autoSigningDate?: boolean;
+  signingDateMode?: 'auto' | 'custom' | 'blank';
+  customSigningDate?: string;
+  prepDate?: Date;
+  earliestTeachingDate?: Date | null;
   signatureImage: string;
   showReflection?: boolean;
   reflectionLines?: number;
+  showSigningDate?: boolean;
 }
 
 /**
@@ -1395,17 +1451,24 @@ export async function signWordDocument(
     contentLines: options.reflectionLines || 3,
     approverTitle: (options.approverTitle as any) || 'TỔ TRƯỞNG KÝ DUYỆT',
     approverName: options.approverName || '',
-    year: '2026',
-    autoSigningDate: true,
+    year: (options.signingDate instanceof Date ? format(options.signingDate, 'yyyy') : null) || '2026',
+    autoSigningDate: options.autoSigningDate !== false,
+    signingDateMode: options.signingDateMode || (options.autoSigningDate === false ? (options.customSigningDate ? 'custom' : 'blank') : 'auto'),
+    customSigningDate: options.customSigningDate,
     showReflection: options.showReflection ?? false,
-    showSigningDate: true,
+    showSigningDate: options.showSigningDate !== false,
     location: options.location || 'Đường Hào',
     teacherName: options.teacherName || 'Phạm Đình Quang',
     insertSignature: true,
     signatureImage: options.signatureImage
   };
 
-  const sigBlockXml = generateReflectionXml(reflectionConfig, { font: 'Times New Roman', size: '28' });
+  const sigBlockXml = generateReflectionXml(
+    reflectionConfig, 
+    { font: 'Times New Roman', size: '28' },
+    options.earliestTeachingDate || (options.signingDate instanceof Date ? options.signingDate : null),
+    options.prepDate || new Date()
+  );
 
   const newDocXml = docXml.slice(0, bodyStartIndex + bodyStartTag.length) +
                     cleanBody +

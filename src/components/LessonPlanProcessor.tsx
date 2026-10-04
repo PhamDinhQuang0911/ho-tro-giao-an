@@ -233,6 +233,81 @@ export function LessonPlanProcessor() {
     }
   }, [classes]);
 
+  const activeSigningMode = reflectionSettings.signingDateMode || 
+    (reflectionSettings.autoSigningDate !== false ? 'auto' : (reflectionSettings.customSigningDate ? 'custom' : 'blank'));
+
+  const customSigningDateObj = useMemo(() => {
+    if (!reflectionSettings.customSigningDate) return undefined;
+    try {
+      const parts = reflectionSettings.customSigningDate.split('-');
+      if (parts.length === 3) {
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      }
+      return new Date(reflectionSettings.customSigningDate);
+    } catch {
+      return undefined;
+    }
+  }, [reflectionSettings.customSigningDate]);
+
+  const previewSigningDate = useMemo(() => {
+    if (activeSigningMode === 'blank') {
+      return `ngày ...... tháng ...... năm ${reflectionSettings.year || '2026'}`;
+    }
+
+    if (activeSigningMode === 'custom') {
+      if (!reflectionSettings.customSigningDate) {
+        return `ngày ...... tháng ...... năm ${reflectionSettings.year || '2026'}`;
+      }
+      try {
+        const parts = reflectionSettings.customSigningDate.split('-');
+        let d: Date;
+        if (parts.length === 3) {
+          d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        } else {
+          d = new Date(reflectionSettings.customSigningDate);
+        }
+        if (!isNaN(d.getTime())) {
+          return `ngày ${format(d, 'dd')} tháng ${format(d, 'MM')} năm ${format(d, 'yyyy')}`;
+        }
+      } catch (e) {
+        return `ngày ...... tháng ...... năm ${reflectionSettings.year || '2026'}`;
+      }
+    }
+
+    // activeSigningMode === 'auto'
+    let targetDate: Date | null = null;
+    if (prepDate && selectedSubject && schedule.length > 0) {
+      const offset = parseInt(weekOffset) || 1;
+      const startOfTargetWeek = addDays(startOfWeek(prepDate, { weekStartsOn: 1 }), 7 * offset);
+      const sessions = schedule
+        .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
+        .sort((a, b) => {
+          const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
+          const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
+          return dayA - dayB;
+        });
+      if (sessions.length > 0) {
+        const s = sessions[0];
+        targetDate = addDays(startOfTargetWeek, s.dayOfWeek === 0 ? 6 : s.dayOfWeek - 1);
+      } else {
+        targetDate = startOfTargetWeek;
+      }
+    } else if (prepDate) {
+      const offset = parseInt(weekOffset) || 1;
+      targetDate = addDays(startOfWeek(prepDate, { weekStartsOn: 1 }), 7 * offset);
+    } else {
+      targetDate = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 7);
+    }
+
+    if (targetDate) {
+      const startOfTeachingWeek = startOfWeek(targetDate, { weekStartsOn: 1 });
+      const signingDate = addDays(startOfTeachingWeek, -2);
+      return `ngày ${format(signingDate, 'dd')} tháng ${format(signingDate, 'MM')} năm ${format(signingDate, 'yyyy')}`;
+    }
+
+    return `ngày ...... tháng ...... năm ${reflectionSettings.year || '2026'}`;
+  }, [activeSigningMode, reflectionSettings.customSigningDate, reflectionSettings.year, prepDate, selectedSubject, schedule, weekOffset]);
+
   const calculatedDates = useMemo(() => {
     if (!prepDate || !selectedSubject || schedule.length === 0) return [];
     
@@ -446,6 +521,23 @@ export function LessonPlanProcessor() {
     setLogs(["🖋️ Bắt đầu ký giáo án..."]);
 
     try {
+      let earliestTeachingDate: Date | null = null;
+      if (prepDate && selectedSubject && schedule.length > 0) {
+        const offset = parseInt(weekOffset) || 1;
+        const startOfTargetWeek = addDays(startOfWeek(prepDate, { weekStartsOn: 1 }), 7 * offset);
+        const sessions = schedule
+          .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
+          .sort((a, b) => {
+            const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
+            const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
+            return dayA - dayB;
+          });
+        if (sessions.length > 0) {
+          const s = sessions[0];
+          earliestTeachingDate = addDays(startOfTargetWeek, s.dayOfWeek === 0 ? 6 : s.dayOfWeek - 1);
+        }
+      }
+
       const outputBlob = await signWordDocument(
         file,
         {
@@ -456,6 +548,12 @@ export function LessonPlanProcessor() {
           signatureImage: savedSignatureUrl,
           showReflection: reflectionSettings.showReflection ?? false,
           reflectionLines: reflectionSettings.contentLines || 3,
+          showSigningDate: reflectionSettings.showSigningDate !== false,
+          autoSigningDate: activeSigningMode === 'auto',
+          signingDateMode: activeSigningMode,
+          customSigningDate: reflectionSettings.customSigningDate,
+          prepDate: prepDate,
+          earliestTeachingDate: earliestTeachingDate,
         },
         (msg) => setLogs(prev => [...prev, msg])
       );
@@ -1134,15 +1232,124 @@ export function LessonPlanProcessor() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <Label htmlFor="auto-signing" className="text-xs">
-                    Tự động tính ngày ký (Thứ 7 tuần trước)
-                  </Label>
-                  <Switch
-                    id="auto-signing"
-                    checked={reflectionSettings?.autoSigningDate !== false}
-                    onCheckedChange={(c) => updateReflection('autoSigningDate', c)}
-                  />
+                {/* CÀI ĐẶT THỜI GIAN KÝ DUYỆT GIÁO ÁN */}
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <CalendarIcon className="w-3.5 h-3.5 text-primary" />
+                      Thời gian ký duyệt:
+                    </Label>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {activeSigningMode === 'auto' && '⚡ Tự động tính'}
+                      {activeSigningMode === 'custom' && '📅 Tự chọn ngày'}
+                      {activeSigningMode === 'blank' && '📝 Để trống'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 bg-slate-200/60 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateReflection('signingDateMode', 'auto');
+                        updateReflection('autoSigningDate', true);
+                      }}
+                      className={cn(
+                        "py-1.5 px-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                        activeSigningMode === 'auto'
+                          ? "bg-white text-primary shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      <span>⚡</span>
+                      <span>Tự động</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateReflection('signingDateMode', 'custom');
+                        updateReflection('autoSigningDate', false);
+                        if (!reflectionSettings.customSigningDate) {
+                          updateReflection('customSigningDate', format(new Date(), 'yyyy-MM-dd'));
+                        }
+                      }}
+                      className={cn(
+                        "py-1.5 px-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                        activeSigningMode === 'custom'
+                          ? "bg-white text-primary shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      <span>📅</span>
+                      <span>Tự chọn</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateReflection('signingDateMode', 'blank');
+                        updateReflection('autoSigningDate', false);
+                      }}
+                      className={cn(
+                        "py-1.5 px-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                        activeSigningMode === 'blank'
+                          ? "bg-white text-primary shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      <span>📝</span>
+                      <span>Để trống</span>
+                    </button>
+                  </div>
+
+                  {/* Detail for Custom Date Picker */}
+                  {activeSigningMode === 'custom' && (
+                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                      <Label className="text-[11px] text-slate-600 font-medium">Chọn ngày ký duyệt theo ý bạn:</Label>
+                      <Popover>
+                        <PopoverTrigger
+                          className={cn(
+                            buttonVariants({ variant: "outline" }),
+                            "w-full justify-start text-left font-normal text-xs h-8 bg-white border-primary/40 text-slate-800 hover:border-primary"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-3.5 w-3.5 text-primary" />
+                          {customSigningDateObj ? (
+                            <span className="font-semibold text-primary">{format(customSigningDateObj, 'dd/MM/yyyy')}</span>
+                          ) : (
+                            <span className="text-muted-foreground">Chọn ngày ký duyệt...</span>
+                          )}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={customSigningDateObj}
+                            onSelect={(date) => {
+                              if (date) {
+                                updateReflection('customSigningDate', format(date, 'yyyy-MM-dd'));
+                              }
+                            }}
+                            initialFocus
+                            locale={vi}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
+
+                  {activeSigningMode === 'auto' && (
+                    <p className="text-[10px] text-slate-500 italic leading-tight">
+                      * Tự động tính Thứ 7 trước tuần dạy (chuẩn CV 5512 Bộ GD&amp;ĐT).
+                    </p>
+                  )}
+
+                  {/* Live preview banner */}
+                  <div className="flex items-center gap-1.5 text-[11px] bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200/70 text-amber-900">
+                    <span className="font-semibold shrink-0">✍️ Sẽ ghi:</span>
+                    <span className="font-bold text-amber-800">
+                      {reflectionSettings.location || 'Đường Hào'}, {previewSigningDate}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between">

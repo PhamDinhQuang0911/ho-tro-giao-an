@@ -26,6 +26,8 @@ export interface ReflectionSettings {
   approverName: string;
   year: string;
   autoSigningDate?: boolean;
+  signingDateMode?: 'auto' | 'custom' | 'blank';
+  customSigningDate?: string;
   showReflection?: boolean;   // hiển thị phần Rút kinh nghiệm (dòng kẻ)
   showSigningDate?: boolean;  // hiển thị dòng "Ký duyệt, ngày..."
   location?: string;          // e.g. "Đường Hào"

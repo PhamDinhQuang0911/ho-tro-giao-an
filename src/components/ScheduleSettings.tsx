@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { SignatureModal } from './SignatureModal';
 import { SubjectApproversModal } from './SubjectApproversModal';
 import { PenTool, Trash2, Plus, Calendar as CalendarIcon, Settings2, Layout, Pencil, Check, X, UserCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,6 +11,11 @@ import { ScheduleItem, HeaderFooterSettings } from '@/lib/word-utils';
 import { ReflectionSettings } from '@/types';
 import { toast } from 'sonner';
 import { AiScheduleModal } from './AiScheduleModal';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 const DAYS_OF_WEEK = [
   { value: 1, label: 'Thứ 2' },
@@ -76,6 +81,22 @@ export function ScheduleSettings() {
 
   const [hfSettings, setHfSettings] = useState<HeaderFooterSettings>(DEFAULT_HF);
   const [reflectionSettings, setReflectionSettings] = useState<ReflectionSettings>(DEFAULT_REFLECTION);
+
+  const activeSigningMode = reflectionSettings.signingDateMode || 
+    (reflectionSettings.autoSigningDate !== false ? 'auto' : (reflectionSettings.customSigningDate ? 'custom' : 'blank'));
+
+  const customSigningDateObj = React.useMemo(() => {
+    if (!reflectionSettings.customSigningDate) return undefined;
+    try {
+      const parts = reflectionSettings.customSigningDate.split('-');
+      if (parts.length === 3) {
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      }
+      return new Date(reflectionSettings.customSigningDate);
+    } catch {
+      return undefined;
+    }
+  }, [reflectionSettings.customSigningDate]);
 
   useEffect(() => {
     const savedSchedule = localStorage.getItem('lesson-plan-schedule');
@@ -495,17 +516,124 @@ export function ScheduleSettings() {
 
           {reflectionSettings.enabled && (
             <div className="space-y-4">
-              <div className="flex items-center space-x-2 mb-2 p-2 bg-blue-50/50 rounded-md border border-blue-100">
-                <input 
-                  type="checkbox" 
-                  id="auto-signing-date" 
-                  checked={!!reflectionSettings.autoSigningDate}
-                  onChange={(e) => setReflectionSettings({...reflectionSettings, autoSigningDate: e.target.checked})}
-                  className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
-                />
-                <Label htmlFor="auto-signing-date" className="text-sm font-medium text-blue-800">
-                  Tự động tính ngày ký (Thứ 7 tuần trước ngày dạy đầu tiên)
-                </Label>
+              <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 space-y-2.5 mb-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                    <CalendarIcon className="w-4 h-4 text-primary" />
+                    Cài đặt thời gian ký duyệt:
+                  </Label>
+                  <span className="text-[10px] text-blue-700 font-medium">
+                    {activeSigningMode === 'auto' && '⚡ Tự động tính'}
+                    {activeSigningMode === 'custom' && '📅 Tự chọn ngày'}
+                    {activeSigningMode === 'blank' && '📝 Để trống'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 bg-blue-100/60 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReflectionSettings(prev => ({
+                        ...prev,
+                        signingDateMode: 'auto',
+                        autoSigningDate: true
+                      }));
+                    }}
+                    className={cn(
+                      "py-1.5 px-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                      activeSigningMode === 'auto'
+                        ? "bg-white text-primary shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    <span>⚡</span>
+                    <span>Tự động tính</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReflectionSettings(prev => ({
+                        ...prev,
+                        signingDateMode: 'custom',
+                        autoSigningDate: false,
+                        customSigningDate: prev.customSigningDate || format(new Date(), 'yyyy-MM-dd')
+                      }));
+                    }}
+                    className={cn(
+                      "py-1.5 px-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                      activeSigningMode === 'custom'
+                        ? "bg-white text-primary shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    <span>📅</span>
+                    <span>Tự chọn ngày</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReflectionSettings(prev => ({
+                        ...prev,
+                        signingDateMode: 'blank',
+                        autoSigningDate: false
+                      }));
+                    }}
+                    className={cn(
+                      "py-1.5 px-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                      activeSigningMode === 'blank'
+                        ? "bg-white text-primary shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    <span>📝</span>
+                    <span>Để trống (Ký tay)</span>
+                  </button>
+                </div>
+
+                {activeSigningMode === 'custom' && (
+                  <div className="space-y-1.5 pt-1">
+                    <Label className="text-xs text-slate-700 font-medium">Chọn ngày ký duyệt:</Label>
+                    <Popover>
+                      <PopoverTrigger
+                        className={cn(
+                          buttonVariants({ variant: "outline" }),
+                          "w-full sm:w-64 justify-start text-left font-normal text-xs h-9 bg-white border-primary/40 text-slate-800"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                        {customSigningDateObj ? (
+                          <span className="font-semibold text-primary">{format(customSigningDateObj, 'dd/MM/yyyy')}</span>
+                        ) : (
+                          <span className="text-muted-foreground">Chọn ngày ký duyệt...</span>
+                        )}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={customSigningDateObj}
+                          onSelect={(date) => {
+                            if (date) {
+                              setReflectionSettings(prev => ({
+                                ...prev,
+                                customSigningDate: format(date, 'yyyy-MM-dd')
+                              }));
+                            }
+                          }}
+                          initialFocus
+                          locale={vi}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+
+                {activeSigningMode === 'auto' && (
+                  <p className="text-[11px] text-blue-700 italic">
+                    * Tự động tính Thứ 7 trước ngày dạy đầu tiên trong tuần (chuẩn CV 5512 Bộ GD&amp;ĐT).
+                  </p>
+                )}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-2">
