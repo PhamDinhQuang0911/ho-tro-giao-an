@@ -34,6 +34,7 @@ export interface ReflectionSettings {
   teacherName?: string;       // e.g. "Nguyễn Thị A"
   insertSignature?: boolean;
   signatureImage?: string;
+  signatureSpace?: 'compact' | 'spacious' | 'extra';
   subjectApprovers?: SubjectApproversMap;
 }
 

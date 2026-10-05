@@ -299,6 +299,10 @@ function generateReflectionXml(
   const dateLine = showSigningDate ? `${loc}, ${signingDateStr}` : '';
 
 
+  const spaceMode = settings.signatureSpace || 'spacious';
+  const trHeight = spaceMode === 'compact' ? 1800 : (spaceMode === 'extra' ? 3400 : 2600);
+  const blankLineCount = spaceMode === 'compact' ? 4 : (spaceMode === 'extra' ? 8 : 6);
+
   let cx = 1500000; // ~4.1 cm default width
   let cy = 750000;  // ~2.0 cm default height
   if (settings.signatureImage) {
@@ -316,8 +320,8 @@ function generateReflectionXml(
                        binary.charCodeAt(23)) >>> 0;
         if (width > 0 && height > 0) {
           const ratio = width / height;
-          const maxW = 1500000;
-          const maxH = 750000;
+          const maxW = spaceMode === 'compact' ? 1500000 : 1700000;
+          const maxH = spaceMode === 'compact' ? 750000 : 900000;
           if (ratio >= maxW / maxH) {
             cx = maxW;
             cy = Math.round(maxW / ratio);
@@ -330,16 +334,24 @@ function generateReflectionXml(
     } catch (e) {}
   }
 
-  let signatureDrawing = `
-    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-    <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-  `;
+  let blankParasXml = '';
+  for (let i = 0; i < blankLineCount; i++) {
+    blankParasXml += `
+      <w:p>
+        <w:pPr>
+          <w:jc w:val="center"/>
+          <w:spacing w:line="240" w:lineRule="auto"/>
+        </w:pPr>
+        <w:r><w:rPr>${fontXml}${smallSizeXml}</w:rPr><w:t></w:t></w:r>
+      </w:p>`;
+  }
+
+  let signatureDrawing = blankParasXml;
 
   if (settings.signatureImage) {
     signatureDrawing = `
       <w:p>
-        <w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="60"/></w:pPr>
+        <w:pPr><w:jc w:val="center"/><w:spacing w:before="120" w:after="120"/></w:pPr>
         <w:r>
           <w:drawing>
             <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
@@ -421,9 +433,9 @@ function generateReflectionXml(
             </w:r>
           </w:p>
           <w:p>
-            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:pPr><w:jc w:val="center"/><w:spacing w:after="40"/></w:pPr>
             <w:r>
-              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
               <w:t>${titleLine}</w:t>
             </w:r>
           </w:p>
@@ -434,7 +446,7 @@ function generateReflectionXml(
           <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="top"/></w:tcPr>
           ${dateSpacer}
           <w:p>
-            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:pPr><w:jc w:val="center"/><w:spacing w:after="40"/></w:pPr>
             <w:r>
               <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
               <w:t>GIÁO VIÊN THỰC HIỆN</w:t>
@@ -450,17 +462,19 @@ function generateReflectionXml(
         </w:tc>
       </w:tr>
 
-      <!-- HÀNG 2: CHỮ KÝ (ẢNH HOẶC KHOẢNG TRỐNG KÝ TAY) -->
+      <!-- HÀNG 2: CHỮ KÝ (ẢNH HOẶC KHOẢNG TRỐNG KÝ TAY RỘNG RÃI) -->
       <w:tr>
-        <!-- Cột trái: Khoảng trống ký tay -->
+        <w:trPr>
+          <w:trHeight w:val="${trHeight}" w:hRule="atLeast"/>
+        </w:trPr>
+
+        <!-- Cột trái: Khoảng trống ký tay người ký duyệt -->
         <w:tc>
           <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
-          <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
+          ${blankParasXml}
         </w:tc>
 
-        <!-- Cột phải: Chữ ký giáo viên -->
+        <!-- Cột phải: Chữ ký giáo viên thực hiện / soạn bài -->
         <w:tc>
           <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="center"/></w:tcPr>
           ${signatureDrawing}
@@ -473,9 +487,9 @@ function generateReflectionXml(
         <w:tc>
           <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="bottom"/></w:tcPr>
           <w:p>
-            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:pPr><w:jc w:val="center"/><w:spacing w:before="120"/></w:pPr>
             <w:r>
-              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
               <w:t>${settings.approverName}</w:t>
             </w:r>
           </w:p>
@@ -485,9 +499,9 @@ function generateReflectionXml(
         <w:tc>
           <w:tcPr><w:tcW w:w="2500" w:type="pct"/><w:vAlign w:val="bottom"/></w:tcPr>
           <w:p>
-            <w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:pPr><w:jc w:val="center"/><w:spacing w:before="120"/></w:pPr>
             <w:r>
-              <w:rPr>${fontXml}${smallSizeXml}</w:rPr>
+              <w:rPr><w:b/>${fontXml}${smallSizeXml}</w:rPr>
               <w:t>${teacher}</w:t>
             </w:r>
           </w:p>
@@ -1361,6 +1375,7 @@ export interface QuickSignOptions {
   showReflection?: boolean;
   reflectionLines?: number;
   showSigningDate?: boolean;
+  signatureSpace?: 'compact' | 'spacious' | 'extra';
 }
 
 /**
@@ -1462,7 +1477,8 @@ export async function signWordDocument(
     location: options.location || 'Đường Hào',
     teacherName: options.teacherName || 'Phạm Đình Quang',
     insertSignature: true,
-    signatureImage: options.signatureImage
+    signatureImage: options.signatureImage,
+    signatureSpace: options.signatureSpace || 'spacious'
   };
 
   const sigBlockXml = generateReflectionXml(

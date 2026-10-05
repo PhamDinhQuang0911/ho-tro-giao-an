@@ -71,6 +71,7 @@ const DEFAULT_REFLECTION: ReflectionSettings = {
   location: 'Đường Hào',
   teacherName: 'Phạm Đình Quang',
   insertSignature: false,
+  signatureSpace: 'spacious',
 };
 
 import { extractTextFromDocx } from '@/lib/nls-utils';
@@ -742,7 +743,8 @@ export function LessonPlanProcessor() {
             enabled: true,
             signingDateMode: item.signingDateMode || activeSigningMode,
             customSigningDate: getResolvedCustomSigningDate(item, i),
-            signatureImage: (reflectionSettings?.insertSignature && savedSignatureUrl) ? savedSignatureUrl : undefined
+            signatureImage: (reflectionSettings?.insertSignature && savedSignatureUrl) ? savedSignatureUrl : undefined,
+            signatureSpace: reflectionSettings.signatureSpace || 'spacious',
           } : undefined,
           nlsOptions: enableNLS ? {
             apiKey: nlsApiKey,
@@ -862,6 +864,7 @@ export function LessonPlanProcessor() {
             customSigningDate: getResolvedCustomSigningDate(item, i),
             prepDate: prepDate,
             earliestTeachingDate: earliestTeachingDate,
+            signatureSpace: reflectionSettings.signatureSpace || 'spacious',
           },
           (msg) => setLogs(prev => [...prev, `[File ${i + 1}] ${msg}`])
         );
@@ -1936,6 +1939,58 @@ export function LessonPlanProcessor() {
                     checked={reflectionSettings?.showReflection !== false}
                     onCheckedChange={(c) => updateReflection('showReflection', c)}
                   />
+                </div>
+
+                {/* Khoảng trống ký tên (GV & Người duyệt) */}
+                <div className="space-y-1.5 pt-2 border-t border-amber-200/80">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-amber-950 flex items-center gap-1.5">
+                      <span>📐</span> Khoảng trống ký tên (GV &amp; Người duyệt):
+                    </Label>
+                    <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-semibold border border-amber-200">
+                      {reflectionSettings.signatureSpace === 'compact' && 'Vừa phải (~3.2 cm)'}
+                      {(!reflectionSettings.signatureSpace || reflectionSettings.signatureSpace === 'spacious') && 'Rộng rãi (~4.6 cm)'}
+                      {reflectionSettings.signatureSpace === 'extra' && 'Rất rộng (~6.0 cm)'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 bg-amber-100/60 p-1 rounded-lg border border-amber-200/70">
+                    <button
+                      type="button"
+                      onClick={() => updateReflection('signatureSpace', 'compact')}
+                      className={`text-xs py-1.5 px-2 rounded-md font-medium transition-all text-center ${
+                        reflectionSettings.signatureSpace === 'compact'
+                          ? 'bg-amber-600 text-white shadow-xs font-semibold'
+                          : 'text-amber-900 hover:bg-amber-200/60'
+                      }`}
+                    >
+                      Vừa phải <span className="text-[10px] opacity-80 block font-normal">~3.2 cm</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateReflection('signatureSpace', 'spacious')}
+                      className={`text-xs py-1.5 px-2 rounded-md font-medium transition-all text-center ${
+                        (!reflectionSettings.signatureSpace || reflectionSettings.signatureSpace === 'spacious')
+                          ? 'bg-amber-600 text-white shadow-xs font-semibold'
+                          : 'text-amber-900 hover:bg-amber-200/60'
+                      }`}
+                    >
+                      Rộng rãi <span className="text-[10px] opacity-80 block font-normal">~4.6 cm (Chuẩn)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateReflection('signatureSpace', 'extra')}
+                      className={`text-xs py-1.5 px-2 rounded-md font-medium transition-all text-center ${
+                        reflectionSettings.signatureSpace === 'extra'
+                          ? 'bg-amber-600 text-white shadow-xs font-semibold'
+                          : 'text-amber-900 hover:bg-amber-200/60'
+                      }`}
+                    >
+                      Rất rộng <span className="text-[10px] opacity-80 block font-normal">~6.0 cm</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic leading-tight">
+                    * Mở rộng đều cả 2 bên (Tổ trưởng ký duyệt &amp; Giáo viên thực hiện), đảm bảo đủ không gian ký tay và đóng dấu.
+                  </p>
                 </div>
                 
                 <div className="border-t border-amber-200/80 pt-3 space-y-2">
