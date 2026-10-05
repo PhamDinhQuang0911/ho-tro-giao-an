@@ -56,6 +56,8 @@ export interface GeneratedNLSContent {
   appendix_table: string;
 }
 
+export type NlsColumnMode = 'col1' | 'col2' | 'col3';
+
 export interface NLSProcessingOptions {
   subject: SubjectType;
   createScheduleTable?: boolean;
@@ -63,6 +65,7 @@ export interface NLSProcessingOptions {
   apiKey: string;
   config: ProcessingConfig;
   addNlsColumn?: boolean;
+  nlsColumnMode?: NlsColumnMode;
   appendixText?: string;
   aiModel?: string;
 }

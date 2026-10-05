@@ -1,7 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mammoth from "mammoth";
 import JSZip from "jszip";
-import { GradeType, GeneratedNLSContent, NLSProcessingOptions } from "../types";
+import { GradeType, GeneratedNLSContent, NLSProcessingOptions, NlsColumnMode } from "../types";
+
+export type { NlsColumnMode };
 
 const LEVEL_MAPPING: Record<string, { ten: string, kyHieu: string, nhiemVu: string }> = {
   "Lớp 1": { ten: "Cơ bản 1", kyHieu: "CB1", nhiemVu: "Nhiệm vụ đơn giản, có hướng dẫn" },
@@ -543,15 +545,28 @@ export function removeExistingNLSFromDocx(xmlDoc: Document, log?: (msg: string) 
   }
 }
 
-export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSContent, log: (msg: string) => void, addNlsColumn: boolean = false): Promise<void> {
+export async function injectNLSIntoDocx(
+  zip: JSZip, 
+  nlsContent: GeneratedNLSContent, 
+  log: (msg: string) => void, 
+  columnMode: NlsColumnMode | boolean = 'col1'
+): Promise<void> {
+  const resolvedMode: NlsColumnMode = 
+    typeof columnMode === 'boolean'
+      ? (columnMode ? 'col3' : 'col1')
+      : (columnMode || 'col1');
+  const isAddCol3 = resolvedMode === 'col3';
+
   const docXmlFile = zip.file("word/document.xml");
   if (!docXmlFile) throw new Error("File word/document.xml không tồn tại.");
 
   if (log) {
-    if (addNlsColumn) {
+    if (resolvedMode === 'col3') {
       log(">> Chế độ NLS: Tạo thêm Cột 3 riêng (Cột NLS / AI)");
+    } else if (resolvedMode === 'col2') {
+      log(">> Chế độ NLS: Tích hợp trực tiếp vào Cột 2 (Dự kiến sản phẩm)");
     } else {
-      log(">> Chế độ NLS: Tích hợp trực tiếp vào Cột 2 (Bảng 2 cột sẵn có)");
+      log(">> Chế độ NLS: Tích hợp trực tiếp vào Cột 1 (Hoạt động của GV & HS - Chuẩn CV 5512)");
     }
   }
 
@@ -561,7 +576,7 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
   const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
   // Clean old NLS/AI first before injecting fresh content
-  removeExistingNLSFromDocx(xmlDoc, log, addNlsColumn);
+  removeExistingNLSFromDocx(xmlDoc, log, isAddCol3);
 
   const baseStyle = extractBaseStyles(xmlDoc);
 
@@ -751,8 +766,9 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
         const font = style.font || baseStyle.font;
         const size = style.size || baseStyle.size;
         const color = item.type === 'ai' ? "FF0000" : "000000";
-        // When inserting directly into column 2, format with italics so it stands out nicely
-        const newPara = createParagraphNode(xmlDoc, item.content, false, color, font, size, !addNlsColumn);
+        // When inserting directly into column 1 or column 2, format with italics so it stands out nicely
+        const isInline = resolvedMode !== 'col3';
+        const newPara = createParagraphNode(xmlDoc, item.content, false, color, font, size, isInline);
 
         // Find parent row if inside a table
         let node: Node | null = anchorPara;
@@ -775,7 +791,7 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
             const firstRowText = firstRow.textContent || "";
             let hasNlsCol = firstRowText.toLowerCase().includes("nls") || firstRowText.toLowerCase().includes("năng lực số");
             
-            if (addNlsColumn) {
+            if (resolvedMode === 'col3') {
               // Add column if missing
               if (!hasNlsCol) {
                 const tblGrid = tableNode.getElementsByTagName("w:tblGrid")[0];
@@ -819,18 +835,46 @@ export async function injectNLSIntoDocx(zip: JSZip, nlsContent: GeneratedNLSCont
                 lastTc.appendChild(newPara);
               }
             } else {
-              // Insert directly into the 2nd cell (or the last cell if there are < 2 cells)
+              // Direct insertion into existing column: 'col1' (default) or 'col2'
               const tcs = Array.from(rowNode.getElementsByTagName("w:tc"));
               if (tcs.length > 0) {
-                const targetTc = tcs.length >= 2 ? tcs[1] : tcs[0];
+                let targetTc: Element;
+                if (resolvedMode === 'col2') {
+                  // Column 2 (or last cell if < 2)
+                  targetTc = tcs.length >= 2 ? tcs[1] : tcs[0];
+                } else {
+                  // Column 1 (first cell: Hoạt động của GV & HS)
+                  targetTc = tcs[0];
+                }
+
                 const existingParas = Array.from(targetTc.getElementsByTagName("w:p"));
                 if (existingParas.length === 1 && (existingParas[0].textContent || "").trim() === "") {
                   targetTc.removeChild(existingParas[0]);
                 }
-                // If anchorPara is inside targetTc, insert right after anchorPara
-                if (anchorPara.parentNode === targetTc) {
-                  targetTc.insertBefore(newPara, anchorPara.nextSibling);
+
+                // Check if anchorPara is inside targetTc
+                let isAnchorInTargetTc = false;
+                let checkNode: Node | null = anchorPara;
+                while (checkNode && checkNode !== rowNode) {
+                  if (checkNode === targetTc) {
+                    isAnchorInTargetTc = true;
+                    break;
+                  }
+                  checkNode = checkNode.parentNode;
+                }
+
+                if (isAnchorInTargetTc) {
+                  if (anchorPara.parentNode === targetTc) {
+                    targetTc.insertBefore(newPara, anchorPara.nextSibling);
+                  } else {
+                    let directChild: Node = anchorPara;
+                    while (directChild.parentNode && directChild.parentNode !== targetTc) {
+                      directChild = directChild.parentNode;
+                    }
+                    targetTc.insertBefore(newPara, directChild.nextSibling);
+                  }
                 } else {
+                  // If anchorPara was in another column, append to targetTc
                   targetTc.appendChild(newPara);
                 }
               }

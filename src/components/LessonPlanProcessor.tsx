@@ -22,7 +22,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { vi } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { SubjectType, GradeType, ReflectionSettings, SubjectApproversMap } from '@/types';
+import { SubjectType, GradeType, ReflectionSettings, SubjectApproversMap, NlsColumnMode } from '@/types';
 import { Switch } from '@/components/ui/switch';
 
 const SUBJECTS: SubjectType[] = [
@@ -177,7 +177,8 @@ export function LessonPlanProcessor() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [nlsGrade, setNlsGrade] = useState<GradeType | ''>('');
   const [aiModel, setAiModel] = useState<string>('gemini-3.6-flash');
-  const [addNlsColumn, setAddNlsColumn] = useState(false);
+  const [nlsColumnMode, setNlsColumnMode] = useState<NlsColumnMode>('col1');
+  const addNlsColumn = nlsColumnMode === 'col3';
   const [mergePeriods, setMergePeriods] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [showSigModal, setShowSigModal] = useState(false);
@@ -253,9 +254,16 @@ export function LessonPlanProcessor() {
     const savedModel = localStorage.getItem('USER_GEMINI_AI_MODEL');
     if (savedModel) setAiModel(savedModel);
 
-    const savedAddNlsCol = localStorage.getItem('USER_ADD_NLS_COL');
-    if (savedAddNlsCol !== null) {
-      setAddNlsColumn(savedAddNlsCol === 'true');
+    const savedMode = localStorage.getItem('USER_NLS_COLUMN_MODE');
+    if (savedMode === 'col1' || savedMode === 'col2' || savedMode === 'col3') {
+      setNlsColumnMode(savedMode as NlsColumnMode);
+    } else {
+      const savedAddNlsCol = localStorage.getItem('USER_ADD_NLS_COL');
+      if (savedAddNlsCol === 'true') {
+        setNlsColumnMode('col3');
+      } else {
+        setNlsColumnMode('col1');
+      }
     }
   }, []);
 
@@ -748,7 +756,8 @@ export function LessonPlanProcessor() {
               insertActivities: true,
               appendTable: true
             },
-            addNlsColumn: addNlsColumn
+            addNlsColumn: nlsColumnMode === 'col3',
+            nlsColumnMode: nlsColumnMode
           } : undefined
         };
 
@@ -1543,94 +1552,112 @@ export function LessonPlanProcessor() {
                       Vị trí tích hợp vào Bảng hoạt động:
                     </Label>
                     <span className="text-[10px] text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full font-semibold border border-teal-200">
-                      {!addNlsColumn ? 'Cột 2 (Bảng 2 cột)' : 'Cột 3 (Tạo cột mới)'}
+                      {nlsColumnMode === 'col1' ? 'Cột 1 (Hoạt động GV & HS)' : nlsColumnMode === 'col3' ? 'Cột 3 (Tạo cột mới)' : 'Cột 2 (Sản phẩm)'}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {/* Option 1: Tích hợp trực tiếp vào Cột 2 */}
-                    <div
+                  <div className="grid grid-cols-3 gap-1.5 p-1 bg-teal-100/60 rounded-xl border border-teal-200">
+                    {/* Nút 1: Vào Cột 1 (Khuyên dùng - Chuẩn CV 5512) */}
+                    <button
+                      type="button"
                       onClick={() => {
-                        setAddNlsColumn(false);
+                        setNlsColumnMode('col1');
+                        localStorage.setItem('USER_NLS_COLUMN_MODE', 'col1');
                         localStorage.setItem('USER_ADD_NLS_COL', 'false');
-                        toast.success('Đã chọn: Tích hợp trực tiếp vào Cột 2 (Bảng 2 cột)');
+                        toast.success('Đã chọn: Tích hợp trực tiếp vào Cột 1 (Hoạt động GV & HS)');
                       }}
                       className={cn(
-                        "p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none",
-                        !addNlsColumn
-                          ? "border-teal-600 bg-teal-50/90 ring-2 ring-teal-500/20 shadow-xs"
-                          : "border-slate-200 bg-white/70 hover:border-slate-300 hover:bg-white text-slate-600"
+                        "py-2 px-1 text-center rounded-lg transition-all text-xs font-semibold flex flex-col items-center gap-1 select-none",
+                        nlsColumnMode === 'col1'
+                          ? "bg-teal-600 text-white shadow-xs"
+                          : "text-teal-900 hover:bg-teal-100/80 bg-white/70"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "p-1.5 rounded-lg shrink-0",
-                            !addNlsColumn ? "bg-teal-600 text-white shadow-2xs" : "bg-slate-100 text-slate-500"
-                          )}>
-                            <Columns2 className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className={cn("text-xs font-bold block", !addNlsColumn ? "text-teal-950" : "text-slate-700")}>
-                              Vào Cột 2 (Sẵn có)
-                            </span>
-                            <span className="text-[10px] text-emerald-600 font-semibold">Khuyên dùng</span>
-                          </div>
-                        </div>
-                        <input
-                          type="radio"
-                          name="nls-column-mode"
-                          checked={!addNlsColumn}
-                          onChange={() => {}}
-                          className="w-4 h-4 text-teal-600 accent-teal-600 cursor-pointer"
-                        />
+                      <div className="flex items-center gap-1">
+                        <Columns2 className="w-3.5 h-3.5" />
+                        <span>Vào Cột 1</span>
                       </div>
-                      <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
-                        Chèn trực tiếp mã NLS/AI vào <strong>Cột số 2</strong> (Nội dung/Hoạt động). <strong>Giữ nguyên bảng 2 cột</strong> sẵn có của giáo án.
-                      </p>
-                    </div>
+                      <span className={cn(
+                        "text-[9px] px-1.5 py-0.2 rounded font-medium",
+                        nlsColumnMode === 'col1' ? "bg-teal-700 text-white" : "text-emerald-700 bg-emerald-50 border border-emerald-200"
+                      )}>
+                        Khuyên dùng
+                      </span>
+                    </button>
 
-                    {/* Option 2: Tạo thêm Cột 3 riêng */}
-                    <div
+                    {/* Nút 2: Tạo Cột 3 riêng */}
+                    <button
+                      type="button"
                       onClick={() => {
-                        setAddNlsColumn(true);
+                        setNlsColumnMode('col3');
+                        localStorage.setItem('USER_NLS_COLUMN_MODE', 'col3');
                         localStorage.setItem('USER_ADD_NLS_COL', 'true');
                         toast.success('Đã chọn: Tạo thêm Cột 3 riêng (NLS / AI)');
                       }}
                       className={cn(
-                        "p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none",
-                        addNlsColumn
-                          ? "border-teal-600 bg-teal-50/90 ring-2 ring-teal-500/20 shadow-xs"
-                          : "border-slate-200 bg-white/70 hover:border-slate-300 hover:bg-white text-slate-600"
+                        "py-2 px-1 text-center rounded-lg transition-all text-xs font-semibold flex flex-col items-center gap-1 select-none",
+                        nlsColumnMode === 'col3'
+                          ? "bg-teal-600 text-white shadow-xs"
+                          : "text-teal-900 hover:bg-teal-100/80 bg-white/70"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "p-1.5 rounded-lg shrink-0",
-                            addNlsColumn ? "bg-teal-600 text-white shadow-2xs" : "bg-slate-100 text-slate-500"
-                          )}>
-                            <Columns3 className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className={cn("text-xs font-bold block", addNlsColumn ? "text-teal-950" : "text-slate-700")}>
-                              Tạo Cột 3 riêng
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">Thêm cột NLS</span>
-                          </div>
-                        </div>
-                        <input
-                          type="radio"
-                          name="nls-column-mode"
-                          checked={addNlsColumn}
-                          onChange={() => {}}
-                          className="w-4 h-4 text-teal-600 accent-teal-600 cursor-pointer"
-                        />
+                      <div className="flex items-center gap-1">
+                        <Columns3 className="w-3.5 h-3.5" />
+                        <span>Tạo Cột 3</span>
                       </div>
-                      <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
-                        Tự động tạo thêm <strong>Cột số 3 riêng</strong> bên phải bảng với tiêu đề "NLS / AI" để ghi mã năng lực số.
+                      <span className={cn(
+                        "text-[9px] px-1.5 py-0.2 rounded font-medium",
+                        nlsColumnMode === 'col3' ? "bg-teal-700 text-white" : "text-slate-500 bg-slate-100 border border-slate-200"
+                      )}>
+                        Cột NLS riêng
+                      </span>
+                    </button>
+
+                    {/* Nút 3: Vào Cột 2 */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNlsColumnMode('col2');
+                        localStorage.setItem('USER_NLS_COLUMN_MODE', 'col2');
+                        localStorage.setItem('USER_ADD_NLS_COL', 'false');
+                        toast.success('Đã chọn: Tích hợp vào Cột 2 (Dự kiến sản phẩm)');
+                      }}
+                      className={cn(
+                        "py-2 px-1 text-center rounded-lg transition-all text-xs font-semibold flex flex-col items-center gap-1 select-none",
+                        nlsColumnMode === 'col2'
+                          ? "bg-teal-600 text-white shadow-xs"
+                          : "text-teal-900 hover:bg-teal-100/80 bg-white/70"
+                      )}
+                    >
+                      <div className="flex items-center gap-1">
+                        <Columns2 className="w-3.5 h-3.5" />
+                        <span>Vào Cột 2</span>
+                      </div>
+                      <span className={cn(
+                        "text-[9px] px-1.5 py-0.2 rounded font-medium",
+                        nlsColumnMode === 'col2' ? "bg-teal-700 text-white" : "text-slate-500 bg-slate-100 border border-slate-200"
+                      )}>
+                        Sản phẩm
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-teal-50/80 border border-teal-200/80 text-[11px] text-slate-600 leading-relaxed">
+                    {nlsColumnMode === 'col1' && (
+                      <p>
+                        💡 Chèn trực tiếp mã NLS/AI vào <strong>Cột số 1</strong> (Hoạt động của giáo viên và học sinh). <strong>Giữ nguyên bảng 2 cột</strong> sẵn có của giáo án theo chuẩn Công văn 5512.
                       </p>
-                    </div>
+                    )}
+                    {nlsColumnMode === 'col3' && (
+                      <p>
+                        💡 Tự động tạo thêm <strong>Cột số 3 riêng</strong> bên phải bảng với tiêu đề &quot;NLS / AI&quot; để ghi mã năng lực số.
+                      </p>
+                    )}
+                    {nlsColumnMode === 'col2' && (
+                      <p>
+                        💡 Chèn trực tiếp mã NLS/AI vào <strong>Cột số 2</strong> (Dự kiến sản phẩm / Nội dung học tập).
+                      </p>
+                    )}
                   </div>
                 </div>
 

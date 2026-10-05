@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { format, addDays, startOfWeek } from 'date-fns';
-import { GeneratedNLSContent, NLSProcessingOptions, ReflectionSettings } from '../types';
+import { GeneratedNLSContent, NLSProcessingOptions, ReflectionSettings, NlsColumnMode } from '../types';
 import { extractTextFromDocx, createIntegrationTextPrompt, generateCompetencyIntegration, injectNLSIntoDocx, extractBaseStyles } from './nls-utils';
 
 export interface ScheduleItem {
@@ -37,6 +37,7 @@ export interface ProcessingOptions {
 interface NlsOptions extends NLSProcessingOptions {
   apiKey: string;
   addNlsColumn?: boolean;
+  nlsColumnMode?: NlsColumnMode;
 }
 
 /**
@@ -1167,7 +1168,8 @@ export async function processWordFile(file: File, options: ProcessingOptions, on
     const nlsContent = await generateCompetencyIntegration(prompt, options.nlsOptions.apiKey, options.nlsOptions.aiModel);
     
     onLog?.(">> Đang tích hợp Năng lực số vào file Word...");
-    await injectNLSIntoDocx(zip, nlsContent, (msg) => onLog?.(msg), options.nlsOptions?.addNlsColumn ?? false);
+    const colMode: NlsColumnMode = options.nlsOptions?.nlsColumnMode || (options.nlsOptions?.addNlsColumn ? 'col3' : 'col1');
+    await injectNLSIntoDocx(zip, nlsContent, (msg) => onLog?.(msg), colMode);
   }
 
   const { xml: headerXml, earliestTeachingDate } = generateHeaderXml(options, baseStyle);
