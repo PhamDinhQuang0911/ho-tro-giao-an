@@ -110,6 +110,8 @@ export function isSubjectMatching(subA?: string, subB?: string): boolean {
   return false;
 }
 
+export const isSubjectMatch = isSubjectMatching;
+
 /**
  * Generates the XML for the lesson plan header table.
  */
@@ -150,7 +152,7 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
   };
 
   let classes = Array.from(new Set(schedule
-    .filter(s => isSubjectMatch(s.subject, subject))
+    .filter(s => isSubjectMatching(s.subject, subject))
     .map(s => s.className)
   ));
   if (classes.length === 0 && schedule.length > 0) {
