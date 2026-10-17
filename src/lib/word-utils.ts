@@ -41,6 +41,76 @@ interface NlsOptions extends NLSProcessingOptions {
 }
 
 /**
+ * Chuẩn hóa tên môn học để so khớp thông minh (bỏ dấu tiếng Việt, ký tự đặc biệt, khoảng trắng).
+ */
+export function normalizeSubjectName(str: string): string {
+  if (!str) return '';
+  let s = str.toLowerCase().trim();
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  s = s.replace(/đ/g, 'd');
+  s = s.replace(/[^a-z0-9]/g, '');
+  return s;
+}
+
+/**
+ * So khớp môn học giữa TKB và giáo án, hỗ trợ tên viết tắt phổ biến trong trường học.
+ */
+export function isSubjectMatching(subA?: string, subB?: string): boolean {
+  if (!subA || !subB) return false;
+  const aRaw = subA.trim().toLowerCase();
+  const bRaw = subB.trim().toLowerCase();
+  if (aRaw === bRaw) return true;
+
+  const a = normalizeSubjectName(subA);
+  const b = normalizeSubjectName(subB);
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  // Trùng một phần hoặc bắt đầu bằng
+  if (a.includes(b) || b.includes(a)) return true;
+
+  // Nhóm tên môn và từ viết tắt thường gặp
+  const aliasGroups: string[][] = [
+    // Hoạt động trải nghiệm
+    ['hdtn', 'tnhn', 'trainghiem', 'hoatdongtrainghiem', 'hoatdongtrainghiemhuongnghiep', 'trainghiemhuongnghiep', 'hdtn9', 'hdtn8', 'hdtn7', 'hdtn6', 'shdc', 'shl'],
+    // Toán
+    ['toan', 'toanhoc', 'daiso', 'hinhhoc', 'ds', 'hh', 'toan9', 'toan8', 'toan7', 'toan6'],
+    // Khoa học tự nhiên & Lý, Hóa, Sinh
+    ['khtn', 'khoahoctunhien', 'vatly', 'hoahoc', 'sinhhoc', 'vatli', 'ly', 'hoa', 'sinh', 'khtn9', 'khtn8', 'khtn7', 'khtn6'],
+    // Tin học
+    ['tin', 'tinhoc', 'tinhoc9', 'tinhoc8', 'tinhoc7', 'tinhoc6'],
+    // Ngữ văn
+    ['van', 'nguvan', 'nguvan9', 'nguvan8', 'nguvan7', 'nguvan6'],
+    // Tiếng Anh
+    ['anh', 'tienganh', 'tieng_anh', 'nn', 'ngoainngu', 'tiengnuocngoai', 'anh9', 'anh8', 'anh7', 'anh6', 'tienganh9', 'tienganh8', 'tienganh7', 'tienganh6'],
+    // Giáo dục công dân
+    ['gdcd', 'congdan', 'giaoduccongdan', 'gdcd9', 'gdcd8', 'gdcd7', 'gdcd6'],
+    // Giáo dục địa phương
+    ['gddp', 'giaoducdiaphuong', 'gddp9', 'gddp8', 'gddp7', 'gddp6'],
+    // Công nghệ
+    ['cn', 'congnghe', 'congnghe9', 'congnghe8', 'congnghe7', 'congnghe6'],
+    // Lịch sử & Địa lí
+    ['su', 'lichsu', 'sudia', 'lichsuvadiali', 'lichsudiali', 'su9', 'su8', 'su7', 'su6'],
+    ['dia', 'dialy', 'diali', 'sudia', 'lichsuvadiali', 'lichsudiali', 'dia9', 'dia8', 'dia7', 'dia6'],
+    // Giáo dục thể chất / Thể dục
+    ['td', 'theduc', 'giaoducthechat', 'gdtc', 'thechat', 'td9', 'td8', 'td7', 'td6'],
+    // Âm nhạc / Mỹ thuật
+    ['nhac', 'amnhac'],
+    ['mt', 'mythuat'],
+    // Khoa học xã hội
+    ['khxh', 'khoahocxahoi']
+  ];
+
+  for (const group of aliasGroups) {
+    const aInGroup = group.some(alias => a === alias || a.startsWith(alias) || alias.startsWith(a));
+    const bInGroup = group.some(alias => b === alias || b.startsWith(alias) || alias.startsWith(b));
+    if (aInGroup && bInGroup) return true;
+  }
+
+  return false;
+}
+
+/**
  * Generates the XML for the lesson plan header table.
  */
 function generateHeaderXml(options: ProcessingOptions, style: { font?: string, size?: string }) {
@@ -57,17 +127,10 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
   
   const allAvailableSessionsByClass: Record<string, any[]> = {};
 
-  const isSubjectMatch = (sSub: string, targetSub: string) => {
-    if (!sSub || !targetSub) return false;
-    const a = sSub.trim().toLowerCase();
-    const b = targetSub.trim().toLowerCase();
-    return a === b || a.startsWith(b) || b.startsWith(a);
-  };
-
   const getSessionsForWeek = (weekStart: Date, weekOffsetIdx: number) => {
     const currentWeekNum = (parseInt(weekNumber) || 0) + weekOffsetIdx;
     return schedule
-      .filter(s => isSubjectMatch(s.subject, subject))
+      .filter(s => isSubjectMatching(s.subject, subject))
       .sort((a, b) => {
         const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
         const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -165,32 +228,11 @@ function generateHeaderXml(options: ProcessingOptions, style: { font?: string, s
       teachingDateText = dates;
   }
 
-  // Word XML for the header matching the user's sample
-  let xml = `
-    <w:tbl>
-      <w:tblPr>
-        <w:tblStyle w:val="TableGrid"/>
-        <w:tblW w:w="0" w:type="auto"/>
-        <w:jc w:val="center"/>
-        <w:tblBorders>
-          <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
-          <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
-          <w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>
-          <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
-          <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>
-          <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
-        </w:tblBorders>
-      </w:tblPr>
-      
-    </w:tbl>
-    <w:p><w:r><w:br w:type="textWrapping"/></w:r></w:p>
-  `;
-  
+  let xml = '';
   // Append schedule table or inline text based on createScheduleTable option
   if (options.createScheduleTable !== false) {
     // Default: show detailed table
-    const scheduleTableXml = generateScheduleTableXml(options, style);
-    xml += scheduleTableXml;
+    xml = generateScheduleTableXml(options, style);
   } else {
     // Simple inline text: Tiết X. Ngày dạy: ...
     const allDates = teachingSessions
@@ -939,7 +981,6 @@ function mergePeriodsByString(xml: string): string {
 
 function generateScheduleTableXml(options: ProcessingOptions, style: { font?: string, size?: string }) {
   const { schedule, prepDate, classOffsets, weekOffset = 1, weekNumber, lessonCount = 1 } = options;
-  if (!schedule || schedule.length === 0) return '';
 
   const fontXml = style.font ? `<w:rFonts w:ascii="${style.font}" w:hAnsi="${style.font}" w:cs="${style.font}"/>` : '';
   const sizeXml = style.size ? `<w:sz w:val="${style.size}"/><w:szCs w:val="${style.size}"/>` : '<w:sz w:val="24"/><w:szCs w:val="24"/>';
@@ -962,69 +1003,100 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
     </w:p>
   `;
 
-  const sorted = [...schedule].sort((a, b) => {
-    if (a.className !== b.className) return a.className.localeCompare(b.className);
-    if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
-    return (a.period || '').localeCompare(b.period || '');
-  });
-
-  const grouped: Record<string, ScheduleItem[]> = {};
-  sorted.forEach(item => {
-    if (!grouped[item.className]) grouped[item.className] = [];
-    grouped[item.className].push(item);
-  });
-
   // Apply weekOffset so table dates match the preview (same as generateHeaderXml)
-  const weekStart = addDays(startOfWeek(new Date(prepDate), { weekStartsOn: 1 }), 7 * weekOffset);
+  const weekStart = addDays(startOfWeek(new Date(prepDate || new Date()), { weekStartsOn: 1 }), 7 * weekOffset);
   let rowsXml = '';
   
   const baseWeek = (parseInt(weekNumber) || 1) + (weekOffset - 1);
 
-  for (const [className, classItems] of Object.entries(grouped)) {
-    let startPPCT = classOffsets[className] || parseInt(options.periodNumber) || 1;
-    const n = classItems.length;
-    const startIndex = (startPPCT - 1) % n;
-    
-    const sessions: any[] = [];
-    for (let i = 0; i < lessonCount; i++) {
-       const currentIndex = (startIndex + i) % n;
-       const wrapCount = Math.floor((startIndex + i) / n);
-       
-       const item = classItems[currentIndex];
-       const daysToAdd = item.dayOfWeek === 0 ? 6 : item.dayOfWeek - 1;
-       const itemDate = addDays(weekStart, daysToAdd + wrapCount * 7);
-       
-       sessions.push({
+  if (schedule && schedule.length > 0) {
+    const sorted = [...schedule].sort((a, b) => {
+      if (a.className !== b.className) return a.className.localeCompare(b.className);
+      if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+      return (a.period || '').localeCompare(b.period || '');
+    });
+
+    const grouped: Record<string, ScheduleItem[]> = {};
+    sorted.forEach(item => {
+      if (!grouped[item.className]) grouped[item.className] = [];
+      grouped[item.className].push(item);
+    });
+
+    for (const [className, classItems] of Object.entries(grouped)) {
+      let startPPCT = (classOffsets && classOffsets[className]) || parseInt(options.periodNumber) || 1;
+      const n = classItems.length;
+      const startIndex = ((startPPCT - 1) % n + n) % n;
+      
+      const sessions: any[] = [];
+      for (let i = 0; i < lessonCount; i++) {
+        const currentIndex = (startIndex + i) % n;
+        const wrapCount = Math.floor((startIndex + i) / n);
+        
+        const item = classItems[currentIndex];
+        const daysToAdd = item.dayOfWeek === 0 ? 6 : item.dayOfWeek - 1;
+        const itemDate = addDays(weekStart, daysToAdd + wrapCount * 7);
+        
+        sessions.push({
           ...item,
           date: itemDate,
           weekIndex: wrapCount
-       });
+        });
+      }
+
+      sessions.forEach((session, index) => {
+        const dateStr = format(session.date, 'dd/MM/yyyy');
+        const thuStr = session.dayOfWeek === 0 ? 'Chủ nhật' : `Thứ ${session.dayOfWeek + 1}`;
+        
+        const tkbNum = session.period ? session.period.replace(/\D/g, '') : '';
+        const ppctNum = startPPCT + index;
+        
+        const isFirstOfClass = index === 0;
+        
+        const sessionsInThisWeek = sessions.filter(s => s.weekIndex === session.weekIndex);
+        const isFirstOfWeekForClass = sessionsInThisWeek[0] === session;
+        
+        const tuanStr = isFirstOfWeekForClass ? `Tuần ${baseWeek + session.weekIndex}` : '';
+
+        rowsXml += `
+          <w:tr>
+            <w:tc>${wTcPr(1000, isFirstOfClass ? 'restart' : 'continue')} ${isFirstOfClass ? wP(className, true) : '<w:p/>'}</w:tc>
+            <w:tc>${wTcPr(1500)} ${wP(thuStr, true)}</w:tc>
+            <w:tc>${wTcPr(2000)} ${wP(dateStr)}</w:tc>
+            <w:tc>${wTcPr(1500)} ${wP(ppctNum.toString())}</w:tc>
+            <w:tc>${wTcPr(1500)} ${wP(tkbNum.toString())}</w:tc>
+            <w:tc>${wTcPr(1500, isFirstOfWeekForClass ? 'restart' : 'continue')} ${isFirstOfWeekForClass ? wP(tuanStr, true, 'FF0000') : '<w:p/>'}</w:tc>
+          </w:tr>
+        `;
+      });
     }
+  } else {
+    // Dự phòng: khi TKB trống hoặc chưa khớp, vẫn tạo bảng lịch dạy chuẩn theo tuần và tiết của giáo án
+    const targetClasses = (classOffsets && Object.keys(classOffsets).length > 0)
+      ? Object.keys(classOffsets)
+      : ['9A'];
 
-    sessions.forEach((session, index) => {
-      const dateStr = format(session.date, 'dd/MM/yyyy');
-      const thuStr = session.dayOfWeek === 0 ? 'Chủ nhật' : `Thứ ${session.dayOfWeek + 1}`;
-      
-      const tkbNum = session.period ? session.period.replace(/\D/g, '') : '';
-      const ppctNum = startPPCT + index;
-      
-      const isFirstOfClass = index === 0;
-      
-      const sessionsInThisWeek = sessions.filter(s => s.weekIndex === session.weekIndex);
-      const isFirstOfWeekForClass = sessionsInThisWeek[0] === session;
-      
-      const tuanStr = isFirstOfWeekForClass ? `Tuần ${baseWeek + session.weekIndex}` : '';
+    targetClasses.forEach(className => {
+      let startPPCT = (classOffsets && classOffsets[className]) || parseInt(options.periodNumber) || 1;
+      for (let i = 0; i < lessonCount; i++) {
+        const ppctNum = startPPCT + i;
+        const itemDate = addDays(weekStart, i);
+        const dateStr = format(itemDate, 'dd/MM/yyyy');
+        const dayOfWeek = itemDate.getDay();
+        const thuStr = dayOfWeek === 0 ? 'Chủ nhật' : `Thứ ${dayOfWeek + 1}`;
+        const isFirstOfClass = i === 0;
+        const tuanStr = isFirstOfClass ? `Tuần ${baseWeek}` : '';
 
-      rowsXml += `
-        <w:tr>
-          <w:tc>${wTcPr(1000, isFirstOfClass ? 'restart' : 'continue')} ${isFirstOfClass ? wP(className, true) : '<w:p/>'}</w:tc>
-          <w:tc>${wTcPr(1500)} ${wP(thuStr, true)}</w:tc>
-          <w:tc>${wTcPr(2000)} ${wP(dateStr)}</w:tc>
-          <w:tc>${wTcPr(1500)} ${wP(ppctNum.toString())}</w:tc>
-          <w:tc>${wTcPr(1500)} ${wP(tkbNum.toString())}</w:tc>
-          <w:tc>${wTcPr(1500, isFirstOfWeekForClass ? 'restart' : 'continue')} ${isFirstOfWeekForClass ? wP(tuanStr, true, 'FF0000') : '<w:p/>'}</w:tc>
-        </w:tr>
-      `;
+        rowsXml += `
+          <w:tr>
+            <w:tc>${wTcPr(1000, isFirstOfClass ? 'restart' : 'continue')} ${isFirstOfClass ? wP(className, true) : '<w:p/>'}</w:tc>
+            <w:tc>${wTcPr(1500)} ${wP(thuStr, true)}</w:tc>
+            <w:tc>${wTcPr(2000)} ${wP(dateStr)}</w:tc>
+            <w:tc>${wTcPr(1500)} ${wP(ppctNum.toString())}</w:tc>
+            <w:tc>${wTcPr(1500)} ${wP((i + 1).toString())}</w:tc>
+            <w:tc>${wTcPr(1500, isFirstOfClass ? 'restart' : 'continue')} ${isFirstOfClass ? wP(tuanStr, true, 'FF0000') : '<w:p/>'}</w:tc>
+          </w:tr>
+        `;
+      }
     });
   }
 
@@ -1032,7 +1104,7 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
     <w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>
     <w:tbl>
       <w:tblPr>
-        <w:tblW w:w="0" w:type="auto"/>
+        <w:tblW w:w="9000" w:type="dxa"/>
         <w:jc w:val="center"/>
         <w:tblBorders>
           <w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>
@@ -1043,6 +1115,14 @@ function generateScheduleTableXml(options: ProcessingOptions, style: { font?: st
           <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
         </w:tblBorders>
       </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="1000"/>
+        <w:gridCol w:w="1500"/>
+        <w:gridCol w:w="2000"/>
+        <w:gridCol w:w="1500"/>
+        <w:gridCol w:w="1500"/>
+        <w:gridCol w:w="1500"/>
+      </w:tblGrid>
       <w:tr>
         <w:tc>${wTcPr(1000, 'restart')} ${wP('Lớp', true)}</w:tc>
         <w:tc>${wTcPr(3500, null, 2)} ${wP('Ngày dạy', true)}</w:tc>

@@ -14,7 +14,7 @@ import { SignatureModal } from './SignatureModal';
 import { AppendixManager } from './AppendixManager';
 import { CoffeeModal } from './CoffeeModal';
 import { SubjectApproversModal } from './SubjectApproversModal';
-import { processWordFile, signWordDocument, ScheduleItem, ProcessingOptions, HeaderFooterSettings } from '@/lib/word-utils';
+import { processWordFile, signWordDocument, ScheduleItem, ProcessingOptions, HeaderFooterSettings, isSubjectMatching } from '@/lib/word-utils';
 import { toast } from 'sonner';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -107,12 +107,12 @@ function computeNextFileConfig(
 
   const targetClasses = selectedClasses.length > 0 
     ? selectedClasses 
-    : Array.from(new Set(schedule.filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase())).map(s => s.className)));
+    : Array.from(new Set(schedule.filter(s => isSubjectMatching(s.subject, selectedSubject)).map(s => s.className)));
 
   targetClasses.forEach(className => {
     const classSessionsCount = schedule.filter(
       s => s.className === className && 
-           s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase())
+           isSubjectMatching(s.subject, selectedSubject)
     ).length;
 
     const startSession = (prevConfig.classOffsets && prevConfig.classOffsets[className]) || 1;
@@ -282,8 +282,7 @@ export function LessonPlanProcessor() {
     }
 
     const matchedKey = Object.keys(map).find(k => {
-      const normK = k.trim().toLowerCase();
-      return normK === normSub || normSub.startsWith(normK) || normK.startsWith(normSub);
+      return isSubjectMatching(k, selectedSubject);
     });
 
     if (matchedKey && map[matchedKey]) {
@@ -310,10 +309,14 @@ export function LessonPlanProcessor() {
 
   const classes = useMemo(() => {
     if (!selectedSubject) return [];
-    const allForSubject = Array.from(new Set(schedule
-      .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
+    let allForSubject = Array.from(new Set(schedule
+      .filter(s => isSubjectMatching(s.subject, selectedSubject))
       .map(s => s.className)
     ));
+    if (allForSubject.length === 0 && schedule.length > 0) {
+      // Fallback: nếu tên môn không khớp hoàn toàn, lấy tất cả các lớp trong TKB để GV dễ chọn
+      allForSubject = Array.from(new Set(schedule.map(s => s.className)));
+    }
     return allForSubject;
   }, [schedule, selectedSubject]);
 
@@ -410,7 +413,7 @@ export function LessonPlanProcessor() {
     if (prepDate && selectedSubject && schedule.length > 0) {
       const startOfTargetWeek = addDays(startOfWeek(prepDate, { weekStartsOn: 1 }), 7 * offset);
       const sessions = schedule
-        .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
+        .filter(s => isSubjectMatching(s.subject, selectedSubject))
         .sort((a, b) => {
           const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
           const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -453,7 +456,7 @@ export function LessonPlanProcessor() {
     const getSessionsForWeek = (weekStart: Date, weekOffsetIdx: number) => {
       const currentWeekNum = currentWeekNumBase + weekOffsetIdx;
       return schedule
-        .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
+        .filter(s => isSubjectMatching(s.subject, selectedSubject))
         .sort((a, b) => {
           const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
           const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -617,7 +620,7 @@ export function LessonPlanProcessor() {
       const weekStart = addDays(startOfTargetWeek, i * 7);
       const currentWeekNum = currentWeekNumBase + i;
       const sessions = schedule
-        .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()) && s.className === className)
+        .filter(s => isSubjectMatching(s.subject, selectedSubject) && s.className === className)
         .sort((a, b) => {
           const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
           const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -711,10 +714,19 @@ export function LessonPlanProcessor() {
     const generatedBlobs: { name: string; blob: Blob; url: string }[] = [];
 
     try {
-      const filteredSchedule = schedule.filter(s => 
-        selectedClasses.includes(s.className) && 
-        s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase())
+      let filteredSchedule = schedule.filter(s => 
+        (selectedClasses.length === 0 || selectedClasses.includes(s.className)) && 
+        isSubjectMatching(s.subject, selectedSubject)
       );
+
+      if (filteredSchedule.length === 0 && schedule.length > 0) {
+        if (selectedClasses.length > 0) {
+          filteredSchedule = schedule.filter(s => selectedClasses.includes(s.className));
+          setLogs(prev => [...prev, `ℹ️ Lấy lịch dạy theo các lớp đã chọn (${selectedClasses.join(', ')}) cho môn "${selectedSubject}".`]);
+        } else {
+          filteredSchedule = schedule;
+        }
+      }
 
       let appendixText = '';
       if (enableNLS) {
@@ -834,7 +846,7 @@ export function LessonPlanProcessor() {
           const offset = parseInt(item.weekOffset) || (i + 1);
           const startOfTargetWeek = addDays(startOfWeek(prepDate, { weekStartsOn: 1 }), 7 * offset);
           const sessions = schedule
-            .filter(s => s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase()))
+            .filter(s => isSubjectMatching(s.subject, selectedSubject))
             .sort((a, b) => {
               const dayA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek;
               const dayB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek;
@@ -1016,7 +1028,11 @@ export function LessonPlanProcessor() {
                         />
                         <Label htmlFor={`class-${className}`} className="text-xs font-medium cursor-pointer">
                           {className} <span className="text-slate-500 text-[11px] ml-0.5">
-                            ({schedule.filter(s => s.className === className && s.subject.toLowerCase().startsWith(selectedSubject.toLowerCase())).map(s => `Thứ ${s.dayOfWeek === 0 ? 'CN' : s.dayOfWeek + 1} (${s.period || '?'})`).join(', ')})
+                            ({(() => {
+                              let classSessions = schedule.filter(s => s.className === className && isSubjectMatching(s.subject, selectedSubject));
+                              if (classSessions.length === 0) classSessions = schedule.filter(s => s.className === className);
+                              return classSessions.map(s => `Thứ ${s.dayOfWeek === 0 ? 'CN' : s.dayOfWeek + 1} (${s.period || '?'})`).join(', ');
+                            })()})
                           </span>
                         </Label>
                       </div>
